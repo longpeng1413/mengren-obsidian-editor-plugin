@@ -1,13 +1,13 @@
 # Releasing / 发布流程
 
-GitHub Releases 是手动安装渠道；它不等于 Obsidian 社区市场上架。
+日常顺序：先本地构建并 `pnpm deploy:local` 装到自己的笔记库试用，确认后再提交、打 tag 发布（发布即触发社区目录自动审核）。本地试用期间不要把改了版本号的 manifest 推到 `main`：Obsidian 检查更新时先读主分支 manifest 的版本，再下载同名 tag 的发布文件。
 
 ## Before tagging
 
 1. 所有回归测试通过；涉及行为修改时做独立测试库实机验证。
 2. 同步 `manifest.json`、`package.json`、`versions.json`、README 版本、CHANGELOG 和 TESTING；构建 banner 自动读 manifest。
 3. `pnpm install --frozen-lockfile`、`pnpm build`、`pnpm test`。
-4. `pwsh -File scripts/package.ps1 -OutputDirectory ./dist`；确认安装 ZIP 是单层 `trader-editor-tools/`，不含 `data.json`、`backups/`、私人笔记或 `node_modules`。
+4. 跑官方 `eslint-plugin-obsidianmd` 推荐规则（含 manifest / LICENSE 校验），0 错误。
 5. 检查 Git diff 和公开内容。只提交源代码、通用示例、说明、构建结果和工作流。
 6. Commit and push `main`；等待 CI 通过。
 
@@ -20,17 +20,13 @@ git tag -a 0.1.1 -m "Release 0.1.1"
 git push origin 0.1.1
 ```
 
-`release.yml` 验证 tag/manifest/package 版本一致，重新构建和运行纯算法测试，用打包脚本生成 ZIP，通过仓库临时 `GITHUB_TOKEN` 发布 Release。Token 不写入代码或日志，不需维护者存长期密钥。
+`release.yml` 验证 tag/manifest/package 版本一致，重新构建和运行纯算法测试，签发构建来源证明，通过仓库临时 `GITHUB_TOKEN` 发布 Release。Token 不写入代码或日志，不需维护者存长期密钥。
 
 Release assets（`main.js`、`manifest.json`、`styles.css` 附 GitHub 构建来源证明，可用 `gh attestation verify main.js --repo longpeng1413/mengren-obsidian-editor-plugin` 核验）:
 
-- `manifest.json`, `main.js`, `styles.css`, `versions.json`
-- `trader-editor-tools-VERSION-install.zip`
-- `trader-editor-tools-VERSION-source.zip`
+- `manifest.json`, `main.js`, `styles.css`（只发布 Obsidian 会下载的文件；`versions.json` 由 Obsidian 从仓库读取）
 
-本地安装包使用中文显示名称；GitHub 附件采用不同英文后缀，避免中文文件名规范化冲突。包内目录和内部 ID 仍为 `trader-editor-tools`，不要因显示名称变化迁移用户设置或重复安装。0.1.6 把 THIRD-PARTY-NOTICES.md 纳入安装与源码包，并在编译文件头附完整 bundled Marked 许可；下载单独 main.js 时也携带许可。
-
-先保留默认 pnpm 锁文件。源码包不含开发依赖、账户凭据、vault 设置/备份；包含 CI 和全部公开文档。发布时不要覆盖已有不同内容的同版本 tag/ZIP；修复应增加新版本。
+内部 ID 和插件目录仍为 `trader-editor-tools`，不要因显示名称变化迁移用户设置或重复安装。编译文件头附完整 bundled Marked 许可，下载单独 main.js 时也携带许可。发布时不要覆盖已有不同内容的同版本 tag；修复应增加新版本。
 
 ## Verify after publishing
 

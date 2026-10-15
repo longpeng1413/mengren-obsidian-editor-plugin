@@ -10,6 +10,7 @@
   "description": "Mengren Editor: installable as is, reproducible build, with regression tests.",
   "scripts": {
     "build": "node scripts/build.cjs",
+    "deploy:local": "node scripts/deploy-local.cjs",
     "test": "node --test tests/core.test.cjs tests/text-style.test.cjs tests/browser.test.cjs",
     "test:core": "node --test tests/core.test.cjs tests/text-style.test.cjs",
     "test:browser": "node --test tests/browser.test.cjs"

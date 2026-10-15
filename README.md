@@ -48,7 +48,7 @@ Reading view and PDF export use the same spacing and styles as Live Preview. Res
 
 **From Obsidian:** open Settings, then Community plugins, select Browse, search for "Mengren Editor", then install and enable it.
 
-**Manually:** download `trader-editor-tools-0.1.9-install.zip` from [Releases](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/releases/latest) and extract the `trader-editor-tools` folder into your vault, not into the Obsidian program directory:
+**Manually:** download `manifest.json`, `main.js` and `styles.css` from the latest [release](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/releases/latest) and put them in a `trader-editor-tools` folder inside your vault, not inside the Obsidian program directory:
 
 ```text
 YOUR-VAULT/.obsidian/plugins/trader-editor-tools/
@@ -116,17 +116,17 @@ Please report bugs with anonymized minimal Markdown, your Obsidian and plugin ve
 
 **手动安装（备用）：**
 
-1. 从 Releases 下载并解压 `trader-editor-tools-0.1.9-install.zip`，得到 `trader-editor-tools` 文件夹。本地中文安装包名为 `Mengren Editor-0.1.9-安装包.zip`；内容相同。GitHub 附件使用不同的英文后缀，避免中文名被平台规范化后冲突。
-2. 将整个文件夹放入**笔记库**的 `.obsidian/plugins/`。不是 Obsidian 程序安装目录。例如：`你的笔记库/.obsidian/plugins/trader-editor-tools/main.js`。
+1. 从 GitHub 最新发布版下载 `manifest.json`、`main.js`、`styles.css` 三个文件。
+2. 在**笔记库**的 `.obsidian/plugins/` 下新建 `trader-editor-tools` 文件夹，把三个文件放进去。不是 Obsidian 程序安装目录。例如：`你的笔记库/.obsidian/plugins/trader-editor-tools/main.js`。
 3. 打开 Obsidian → 设置 → 第三方插件，允许社区插件后，找到 **Mengren Editor** 并启用。未出现时重启 Obsidian。
 4. 设置 → Mengren Editor 调整参数。设置 → 快捷键，搜索 `Mengren`，为需要的命令自行绑定按键。
 5. 关闭旧 `wolai-layout.css` 和其他同类排版片段，避免叠加。也不建议同时启用多个拦截图片拖动的插件。
 
-必需文件为 `manifest.json`、`main.js`、`styles.css`；另外附带 `versions.json`、说明、许可证与验收记录。不要把源代码 ZIP 当作安装 ZIP；也不要套两层同名文件夹。
+只需要 `manifest.json`、`main.js`、`styles.css` 三个文件；不要套两层同名文件夹。
 
 本插件原名 Trader Editor Tools。0.1.4 起统一使用中文显示名称，菜单和设置以中文为主。内部 ID、安装目录 `trader-editor-tools` 及现有 GitHub 仓库地址保持不变，避免丢失配色、快捷键与备份；升级时不要另建一个同 ID 的插件目录。
 
-升级时先停用插件，覆盖这三个运行文件，保留原来的 `data.json` 和 `backups/`，再启用。不随安装包携带其他人的设置和备份。
+升级时先停用插件，覆盖这三个运行文件，保留原来的 `data.json` 和 `backups/`，再启用。
 
 不要安装到 Obsidian 程序目录。Excalidraw 是独立插件，请保留；本插件不会替代绘图编辑器。
 
@@ -262,7 +262,7 @@ Markdown 原生格式负责语义，插件只添加视觉层。以粗体同时�
 
 ## 完整工程与开发
 
-源代码 ZIP 包含 `src/`、`tests/`、`scripts/`、锁文件、示例与已编译文件。Obsidian / CodeMirror API 由宿主提供；Markdown 行内解析器 Marked 已编入 `main.js`，无需另外安装。[第三方许可证](THIRD-PARTY-NOTICES.md) 随安装包附带，其余开发依赖仅用于构建与隔离测试。
+完整源代码在 GitHub 仓库中：`src/`、`tests/`、`scripts/`、锁文件、示例与已编译文件。Obsidian / CodeMirror API 由宿主提供；Markdown 行内解析器 Marked 已编入 `main.js`，无需另外安装。[第三方许可证](THIRD-PARTY-NOTICES.md) 也写在 `main.js` 文件头，其余开发依赖仅用于构建与隔离测试。
 
 ```sh
 pnpm install --frozen-lockfile
@@ -272,11 +272,11 @@ pnpm test
 
 浏览器测试默认使用 Windows Edge；其他环境通过 `TET_BROWSER` 指定已安装 Chromium 浏览器路径。浏览器夹具使用真实 CodeMirror 6，但 Obsidian API 和绘图渲染有模拟，不能取代真机测试。
 
-打包：`pwsh -File scripts/package.ps1 -OutputDirectory ./dist`（先构建）。原生诊断：`node scripts/native-diagnostics.cjs TEST_VAULT`，只读当前 `Trader Editor Tools 验收/` 专用目录笔记，必须明确传入测试库名称，并通过 `OBSIDIAN_CLI` 指定 CLI 路径（或加入 PATH）。不要对未知当前仓库运行命令。
+本地试用：`pnpm deploy:local` 构建后复制到 `.local-vaults.json` 里列出的笔记库，并在 Obsidian 中重新加载、核实（该配置文件含个人路径，不提交，格式见 [开发指南](CONTRIBUTING.md)）。原生诊断：`node scripts/native-diagnostics.cjs TEST_VAULT`，只读当前 `Trader Editor Tools 验收/` 专用目录笔记，必须明确传入测试库名称，并通过 `OBSIDIAN_CLI` 指定 CLI 路径（或加入 PATH）。不要对未知当前仓库运行命令。
 
-工程有 GitHub Actions 自动构建与回归测试；版本 tag 发布工作流生成安装 ZIP、完整源码 ZIP 和三个 Obsidian 运行文件。维护细节见 [发布指南](docs/RELEASING.md)。
+工程有 GitHub Actions 自动构建与回归测试；版本 tag 发布工作流只发布 Obsidian 需要的三个运行文件，并附 GitHub 构建来源证明。维护细节见 [发布指南](docs/RELEASING.md)。
 
-当前通过 GitHub Releases 手动安装，**尚未上架 Obsidian 社区插件市场**。公开 GitHub 仓库和发布版本不等于社区市场已经审核通过；后续提交需遵循 Obsidian 的审核要求。
+插件已以 **Mengren Editor** 提交 Obsidian 社区插件目录，每个新版本都会经过官方自动审核；首选从插件市场安装和更新，GitHub 发布版作为手动安装的备用渠道。
 
 ## 常见问题
 

@@ -8,3 +8,5 @@ backups/
 *.log
 package-stage-*/
 *.zip
+# Personal vault paths for scripts/deploy-local.cjs
+.local-vaults.json

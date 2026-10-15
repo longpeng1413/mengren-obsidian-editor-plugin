@@ -25,9 +25,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm test:core
-      - name: Package portable source and installer
-        shell: pwsh
-        run: ./scripts/package.ps1 -OutputDirectory ./dist
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v4
         with:
@@ -39,8 +36,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: |
-          # GitHub normalizes non-ASCII asset names; keep distinct portable names.
-          cp dist/*-安装包.zip "dist/trader-editor-tools-$RELEASE_TAG-install.zip"
-          cp dist/*-源码.zip "dist/trader-editor-tools-$RELEASE_TAG-source.zip"
-          gh release create "$RELEASE_TAG" manifest.json main.js styles.css versions.json "dist/trader-editor-tools-$RELEASE_TAG-install.zip" "dist/trader-editor-tools-$RELEASE_TAG-source.zip" --verify-tag --title "Mengren Editor $RELEASE_TAG" --notes-file CHANGELOG.md
+        # Only the files Obsidian downloads; versions.json is read from the repository.
+        run: gh release create "$RELEASE_TAG" manifest.json main.js styles.css --verify-tag --title "Mengren Editor $RELEASE_TAG" --notes-file CHANGELOG.md

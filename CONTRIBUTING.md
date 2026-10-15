@@ -40,6 +40,21 @@ pnpm test
 
 测试截图在 `.test-artifacts/`，不提交个人截图。浏览器夹具真实使用 CM6；Obsidian API 和绘图 SVG 为模拟，不等于原生端到端验收。
 
+## Local deployment
+
+维护者先在自己的笔记库试用，再发布。在仓库根目录创建 `.local-vaults.json`（已被 `.gitignore` 忽略，含个人路径，不要提交）：
+
+```json
+{
+  "obsidian": "PATH/TO/Obsidian.exe",
+  "vaults": [
+    { "name": "My vault", "path": "PATH/TO/VAULT" }
+  ]
+}
+```
+
+`pnpm deploy:local` 会构建，并只把 `manifest.json`、`main.js`、`styles.css` 复制到每个库的 `.obsidian/plugins/trader-editor-tools/`（不碰 `data.json` 与 `backups/`）；对 Obsidian 正打开的库通过 CLI 重新加载插件并核实版本、加载状态和样式只有一份，未打开的库下次启动时生效。
+
 ## Native checks
 
 将构建后的 `manifest.json`、`main.js`、`styles.css` 复制到独立库 `.obsidian/plugins/trader-editor-tools/`，启用插件。可把 `examples/` 的公开示例复制进测试库的 `Trader Editor Tools 验收/`。安装 Excalidraw 为可选兼容测试。
