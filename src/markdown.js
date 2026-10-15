@@ -79,6 +79,8 @@ function classify(text, { splitLazyListLines = false } = {}) {
   const quoteBlanks = Array(lines.length).fill(false);
   const continuations = Array(lines.length).fill(false);
   const indentedCode = Array(lines.length).fill(false);
+  // Opening-line index of the fenced code block each line belongs to, or -1.
+  const fenceOf = Array(lines.length).fill(-1);
   let fence = null, yaml = false, comment = false, html = false, math = false;
   let quote = false, quoteCanLazy = false, list = false, lastListIndent = 0, listContentIndent = 2, reference = false;
   for (let i = 0; i < lines.length; i++) {
@@ -93,12 +95,12 @@ function classify(text, { splitLazyListLines = false } = {}) {
       continue;
     }
     if (fence) {
-      kinds[i] = 'protected'; opaque[i]=true;
+      kinds[i] = 'protected'; opaque[i]=true; fenceOf[i]=fence.start;
       if (new RegExp('^\\s*' + fence.char + '{' + fence.length + ',}\\s*$').test(s)) fence = null;
       continue;
     }
     const fm = /^\s*(`{3,}|~{3,})/.exec(s);
-    if (fm) { fence = { char: fm[1][0], length: fm[1].length }; kinds[i] = 'protected'; opaque[i]=true; continue; }
+    if (fm) { fence = { char: fm[1][0], length: fm[1].length, start: i }; kinds[i] = 'protected'; opaque[i]=true; fenceOf[i]=i; continue; }
     if (comment || /<!--|%%/.test(s)) {
       kinds[i] = 'protected'; opaque[i]=true;
       if (/<!--/.test(s) && !/-->/.test(s)) comment = '-->';
@@ -186,7 +188,7 @@ function classify(text, { splitLazyListLines = false } = {}) {
     let j=i;while(j<lines.length && kinds[j]==='blank')j++;
     if(indentedCode[j]) for(let k=i;k<j;k++) {indentedCode[k]=true;kinds[k]='protected';}
   }
-  return { lines, kinds, table, quotes, quoteBlanks, continuations, indentedCode };
+  return { lines, kinds, table, quotes, quoteBlanks, continuations, indentedCode, fenceOf };
 }
 
 /** Only plain, non-code source blanks participate. The final empty source
@@ -205,6 +207,46 @@ function blankSpacing(data) {
     i=end-1;
   }
   return {rows,runs};
+}
+
+/** Painted blocks (fenced code background, quote bar, Callout box) draw over
+ * their own half of the visible prose gap, so Live Preview restores that half
+ * outside the paint: on the first plain blank between two blocks (counting one
+ * per painted side), or as edge space on an unpainted line that touches the
+ * paint directly. Tables and images carry their own outside padding. Only
+ * unindented blocks count: indented quotes/code inside lists keep list spacing,
+ * as in Reading/PDF where only top-level blocks are wrapped.
+ * Returns {blanks: Map(row -> 1|2), above: Set(row), below: Set(row)}. */
+function paintedGaps(data) {
+  const {lines,kinds,quotes,fenceOf}=data;
+  const blanks=new Map(),above=new Set(),below=new Set();
+  const quoteTop=Array(lines.length).fill(false);
+  for(let i=0;i<lines.length;i++) if(quotes[i]) {
+    let end=i;while(quotes[end+1])end++;
+    const top=/^>/.test(lines[i].text);
+    for(let k=i;k<=end;k++)quoteTop[k]=top;
+    i=end;
+  }
+  const painted=i=>i>=0 && i<lines.length && (quoteTop[i] || (fenceOf[i]>=0 && /^[`~]/.test(lines[fenceOf[i]].text)));
+  const own=i=>kinds[i]==='table' || kinds[i]==='image';
+  for(let i=0;i<lines.length;i++) {
+    if(kinds[i]==='blank') {
+      let end=i;while(kinds[end+1]==='blank')end++;
+      // The trailing empty caret position is not a separator between blocks.
+      if(i>0 && end+1<lines.length) {
+        const count=(painted(i-1)?1:0)+(painted(end+1)?1:0);
+        if(count) blanks.set(i,count);
+      }
+      i=end;continue;
+    }
+    const next=i+1;
+    if(next>=lines.length || kinds[next]==='blank') continue;
+    const a=painted(i),b=painted(next);
+    if(a===b) continue;
+    if(a && !own(next)) above.add(next);
+    if(b && !own(i)) below.add(i);
+  }
+  return {blanks,above,below};
 }
 
 function formatNote(text, { splitProseLines = true, looseLists = true, splitIndentedListParagraphs = false } = {}) {
@@ -424,4 +466,4 @@ function dragSize(initial, dx, dy, corner, free, maxWidth = 4096) {
   return { width: Math.round(w), height: Math.round(w/ratio) };
 }
 
-module.exports = { linesOf, splitPipes, classify, blankSpacing, formatNote, scanImages, imageDimensions, resizedToken, sameDocumentPatch, dragSize, isExcalidraw, isImageTarget, relativeTarget, tableCellRange };
+module.exports = { linesOf, splitPipes, classify, blankSpacing, paintedGaps, formatNote, scanImages, imageDimensions, resizedToken, sameDocumentPatch, dragSize, isExcalidraw, isImageTarget, relativeTarget, tableCellRange };

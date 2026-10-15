@@ -8,7 +8,7 @@ const { ImageResizeManager, cleanTarget } = require('./image-resize');
 const DEFAULTS = {
   layoutVersion:2, layoutEnabled:true, lineHeight:1.62, blockPadding:0.28,
   headingH1:0.95, headingH2:0.82, headingH3:0.70, headingH4:0.58,
-  listIndent:1.8, imagePadding:0.28, tablePadding:0.28, splitProseLines:true, looseLists:true,
+  listIndent:1.8, mediaFollowsBody:true, imagePadding:0.28, tablePadding:0.28, splitProseLines:true, looseLists:true,
   splitIndentedListParagraphs:true,
   tabKnowledgeLines:true,
   preserveExtraBlankLines:true,
@@ -130,11 +130,13 @@ class TraderSettings extends PluginSettingTab {
     number('H3 上下每侧留白（em）','headingH3',0,3,0.01);
     number('H4–H6 上下每侧留白（em）','headingH4',0,3,0.01);
     number('列表缩进（em）','listIndent',1,4,0.1);
-    number('图片上下每侧留白（em）','imagePadding',0,3,0.01);
-    number('表格上下每侧留白（em）','tablePadding',0,3,0.01);
+    new Setting(el).setName('表格、图片间距跟随正文').setDesc('代码块、引用、提示框、表格、图片的外侧各留半份正文空白：它们的背景框 / 竖线 / 框线到上下文字的空白，与两段正文文字之间看到的空白相同。编辑、阅读、PDF 一致。关闭后可用下面两项单独设置图片、表格外侧留白。')
+      .addToggle(t=>t.setValue(s.mediaFollowsBody).onChange(async value=>{s.mediaFollowsBody=value;await p.saveSettings();this.display();}));
+    number('图片上下每侧留白（em）','imagePadding',0,3,0.01).setDisabled(s.mediaFollowsBody);
+    number('表格上下每侧留白（em）','tablePadding',0,3,0.01).setDisabled(s.mediaFollowsBody);
     new Setting(el).setName('恢复已验证 WoLai 基准').setDesc('正文行距 1.62；正文和顶层列表每侧 0.28em；标题上下对称。不会修改笔记。')
       .addButton(b=>b.setButtonText('恢复基准').onClick(async()=>{
-        for(const key of ['layoutVersion','lineHeight','blockPadding','headingH1','headingH2','headingH3','headingH4','listIndent','imagePadding','tablePadding']) s[key]=DEFAULTS[key];
+        for(const key of ['layoutVersion','lineHeight','blockPadding','headingH1','headingH2','headingH3','headingH4','listIndent','mediaFollowsBody','imagePadding','tablePadding']) s[key]=DEFAULTS[key];
         await p.saveSettings();this.display();
       }));
     toggle('格式化：逐行分段','普通正文每个物理换行独立成段；顶层列表后未缩进正文也独立成段。原笔记用软换行延续列表或手工折行时请关闭。自动折行、硬换行和嵌套列表保留。','splitProseLines');
@@ -176,7 +178,7 @@ module.exports = class TraderEditorTools extends Plugin {
     this.bindDocument(this.app.workspace.containerEl.ownerDocument);
     this.app.workspace.iterateAllLeaves(leaf=>this.bindDocument(leaf.view.containerEl.ownerDocument));
     this.registerEvent(this.app.workspace.on('window-open',(_,window)=>this.bindDocument(window.document)));
-    this.registerEvent(this.app.workspace.on('window-close',(_,window)=>this.documents.delete(window.document)));
+    this.registerEvent(this.app.workspace.on('window-close',(_,window)=>{this.documents.delete(window.document);this.images.unbind(window.document);}));
     this.registerEvent(this.app.workspace.on('active-leaf-change',()=>this.images.close()));
     this.registerEvent(this.app.workspace.on('file-open',()=>{this.images.resolveId++;this.images.close();}));
     this.registerEditorExtension(layoutExtension(this));

@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {classify,blankSpacing,formatNote,scanImages,imageDimensions,resizedToken,sameDocumentPatch,splitPipes,dragSize,tableCellRange}=require('../src/markdown');
+const {classify,blankSpacing,paintedGaps,formatNote,scanImages,imageDimensions,resizedToken,sameDocumentPatch,splitPipes,dragSize,tableCellRange}=require('../src/markdown');
 const {stylePatch}=require('../src/text-style');
 
 test('one separator collapses; each additional saved plain blank stays visible',()=>{
@@ -22,6 +22,32 @@ test('extra-blank calculation does not reinterpret YAML, fences, HTML, quotes or
   for(const text of ['---\n\n\na: 1\n---','```\n\n\n```','<div>\n\n</div>','> 引用\n>\n>\n> 续行','    code\n\n\n    more']) {
     assert.equal(blankSpacing(classify(text)).rows.size,0,text);
   }
+});
+
+test('painted code, quote and Callout edges restore half the visible prose gap outside their paint',()=>{
+  const gaps=text=>{const g=paintedGaps(classify(text));return {blanks:[...g.blanks],above:[...g.above],below:[...g.below]};};
+  const table='| 层次 | 职责 |\n| --- | --- |\n| 甲 | 乙 |';
+  // One half per painted side on the first separator; prose and lists keep their own padding.
+  const mixed='正文\n\n```text\n代码\n```\n\n> 引用\n\n正文';
+  assert.deepEqual(gaps(mixed),{blanks:[[1,1],[5,2],[7,1]],above:[],below:[]});
+  assert.deepEqual(gaps(mixed.replace(/\n/g,'\r\n')),gaps(mixed));
+  assert.deepEqual(gaps('> [!note] 提示\n> 内容\n\n'+table+'\n\n~~~\n代码\n~~~').blanks,[[2,1],[6,1]]);
+  // Tables, images, headings, lists, Tab rows and prose alone need no restored half.
+  for(const text of ['正文\n\n'+table+'\n\n- 列表','## 标题\n\n![[图.png]]\n\n'+table,'\t知识行\n\n正文']) assert.deepEqual(gaps(text),{blanks:[],above:[],below:[]},text);
+  // Extra blanks keep N-1 visible rows; the first separator carries the half.
+  const extra='```\n代码\n```\n\n\n正文';
+  assert.deepEqual(gaps(extra).blanks,[[3,1]]);
+  assert.deepEqual([...blankSpacing(classify(extra)).rows],[4]);
+  // Without a blank line, the unpainted line touching the paint gets the space.
+  assert.deepEqual(gaps('正文\n```\n代码\n```\n## 标题\n> 引用\n\n正文'),{blanks:[[6,1]],above:[4],below:[0,4]});
+  // Lazy quote prose belongs to the quote; tables touching paint keep their own padding.
+  assert.deepEqual(gaps('> 引用\n懒续行\n\n正文').blanks,[[2,1]]);
+  assert.deepEqual(gaps('```\n代码\n```\n'+table),{blanks:[],above:[],below:[]});
+  // Indented quotes and code inside lists keep list spacing, as in Reading/PDF.
+  assert.deepEqual(gaps('- 列表\n  ```\n  代码\n  ```\n\n  > 引用\n\n正文'),{blanks:[],above:[],below:[]});
+  // A trailing caret position is not a separator; source text is never rewritten.
+  assert.deepEqual(gaps('```\n代码\n```\n').blanks,[]);
+  assert.equal(formatNote(mixed).text,mixed);
 });
 
 test('image dimension input reads wiki, Markdown, references and escaped table alt safely',()=>{

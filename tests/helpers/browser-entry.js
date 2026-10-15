@@ -26,9 +26,10 @@ function rendered(text) {
   return marked.parse(output);
 }
 class PreviewWidget extends WidgetType {
-  constructor(text){super();this.text=text;}
-  eq(other){return this.text===other.text;}
-  toDOM(){const div=document.createElement('div');div.className='cm-embed-block markdown-rendered';div.innerHTML=rendered(this.text);return div;}
+  constructor(text,kind=''){super();this.text=text;this.kind=kind;}
+  eq(other){return this.text===other.text&&this.kind===other.kind;}
+  // Obsidian marks LP table widgets with cm-table-widget; layout CSS targets it.
+  toDOM(){const div=document.createElement('div');div.className='cm-embed-block markdown-rendered'+(this.kind?' '+this.kind:'');div.innerHTML=rendered(this.text).trim();return div;}
 }
 class InlineHTMLWidget extends WidgetType {
   constructor(raw){super();this.raw=raw;}
@@ -41,12 +42,21 @@ const widgetField=StateField.define({
 });
 function widgets(state) {
   const text=state.doc.toString(),lines=text.split('\n');const marks=[];
-  let offset=0;
+  let offset=0,fence=null;
   for(let i=0;i<lines.length;i++) {
+    // Mirror Obsidian's painted LP lines: fenced code background rows and quote rows.
+    const opens=!fence&&/^(`{3,}|~{3,})/.exec(lines[i]);
+    if(opens||fence) {
+      const closes=!opens&&new RegExp('^'+fence[0]+'{'+fence.length+',}\\s*$').test(lines[i]);
+      marks.push(Decoration.line({class:'HyperMD-codeblock HyperMD-codeblock-bg'+(opens?' HyperMD-codeblock-begin':'')+(closes?' HyperMD-codeblock-end':'')}).range(offset));
+      fence=opens?opens[1]:closes?null:fence;
+      offset+=lines[i].length+1;continue;
+    }
+    if(/^>/.test(lines[i]))marks.push(Decoration.line({class:'HyperMD-quote'}).range(offset));
     if(lines[i].startsWith('|') && i+1<lines.length && /---/.test(lines[i+1])) {
       let end=i;while(end+1<lines.length && lines[end+1].startsWith('|'))end++;
       const block=lines.slice(i,end+1).join('\n');
-      marks.push(Decoration.replace({widget:new PreviewWidget(block),block:true}).range(offset,offset+block.length));
+      marks.push(Decoration.replace({widget:new PreviewWidget(block,'cm-table-widget'),block:true}).range(offset,offset+block.length));
       offset+=block.length+1;i=end;continue;
     }
     if(/^!\[/.test(lines[i])) marks.push(Decoration.replace({widget:new PreviewWidget(lines[i]),block:true}).range(offset,offset+lines[i].length));

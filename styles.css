@@ -8,8 +8,15 @@
   --tet-h3: .70em;
   --tet-h4: .58em;
   --tet-list-indent: 1.8em;
-  --tet-image-padding: .28em;
-  --tet-table-padding: .28em;
+}
+/* Half of the VISIBLE prose gap: block padding plus half the line's leading
+   (a CJK glyph fills about 1em). Painted blocks - fenced code backgrounds,
+   quote bars, Callout boxes, table borders and images - keep it outside their
+   paint, so paint to text and paint to paint read like text to text. Registered
+   as a length so it resolves once per editor/reading root, not per heading. */
+@property --tet-paint-gap { syntax: '<length>'; inherits: true; initial-value: 0px; }
+body.tet-enabled :is(.markdown-source-view, .markdown-preview-view) {
+  --tet-paint-gap: calc(var(--tet-block-padding) + (var(--tet-line-height) - 1) * .5em);
 }
 body.tet-enabled :is(.markdown-preview-view, .markdown-rendered, .markdown-source-view.mod-cm6.is-live-preview) {
   --p-spacing: 0px;
@@ -78,10 +85,24 @@ body.tet-enabled :is(.markdown-preview-view, .markdown-rendered) h1 { padding-bl
 body.tet-enabled :is(.markdown-preview-view, .markdown-rendered) h2 { padding-block: var(--tet-h2); }
 body.tet-enabled :is(.markdown-preview-view, .markdown-rendered) h3 { padding-block: var(--tet-h3); }
 body.tet-enabled :is(.markdown-preview-view, .markdown-rendered) p:has(> :is(img,.image-embed,.excalidraw-embedded-img):only-child) {
-  padding-block: var(--tet-image-padding);
+  padding-block: var(--tet-image-padding, var(--tet-paint-gap));
+}
+/* A standalone image sits on the line bottom, not the text baseline: its edge,
+   not a descender gap below it, carries the image padding. */
+body.tet-enabled :is(.markdown-preview-view, .markdown-rendered) p:has(> :is(img,.image-embed,.excalidraw-embedded-img):only-child) :is(img,svg,.image-embed,.excalidraw-embedded-img) {
+  vertical-align: bottom;
 }
 body.tet-enabled :is(.markdown-preview-view, .markdown-rendered) table { margin-block: 0 !important; }
-body.tet-enabled .markdown-preview-view .el-table { padding-block: var(--tet-table-padding) !important; }
+/* Reading wraps each top-level block in an .el-* section; PDF export wraps each
+   one in a plain div under .print > .markdown-preview-view. Match the wrapper by
+   what it holds, so Reading and PDF share one rule. Tab knowledge rows are text. */
+body.tet-enabled :is(.markdown-preview-sizer, .print > .markdown-preview-view) > div:has(> :is(pre:not(.tet-tab-knowledge), blockquote, .callout)) {
+  padding-block: var(--tet-paint-gap) !important;
+}
+body.tet-enabled :is(.markdown-preview-sizer, .print > .markdown-preview-view) > div:has(> table) {
+  padding-block: var(--tet-table-padding, var(--tet-paint-gap)) !important;
+}
+body.tet-enabled :is(.markdown-preview-sizer, .print > .markdown-preview-view) > div > .callout { margin-block: 0 !important; }
 /* Do not impose fixed column widths or overflow:hidden. A completed resize can
    expand a cell naturally; during dragging only the fixed overlay is resized. */
 body.tet-enabled :is(.markdown-preview-view, .markdown-source-view) :is(td,th) :is(img,svg.excalidraw-svg) {
@@ -125,8 +146,29 @@ body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-head
 body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-h1 { padding-block: var(--tet-h1) !important; }
 body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-h2 { padding-block: var(--tet-h2) !important; }
 body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-h3 { padding-block: var(--tet-h3) !important; }
-body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-image-line { margin-block: 0 !important; padding-block: var(--tet-image-padding) !important; }
-body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-table-widget { margin-block: 0 !important; padding-block: var(--tet-table-padding); }
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-image-line { margin-block: 0 !important; padding-block: var(--tet-image-padding, var(--tet-paint-gap)) !important; }
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-table-widget { margin-block: 0 !important; padding-block: var(--tet-table-padding, var(--tet-paint-gap)) !important; }
+/* Fenced code, quotes and Callouts paint over their own half gap: the separator
+   beside them shows one half per painted side, and an unpainted line touching
+   the paint directly adds the same space to its padding (borders would snap to
+   whole pixels). */
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-gap.tet-paint-gap:not(.tet-input-gap):not(.tet-extra-blank) {
+  font-size: inherit !important;
+  height: var(--tet-paint-gap) !important;
+  min-height: 0 !important;
+  overflow: hidden;
+}
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-gap.tet-paint-gap-2:not(.tet-input-gap):not(.tet-extra-blank) { height: calc(2 * var(--tet-paint-gap)) !important; }
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-paint-above { padding-top: calc(var(--tet-block-padding) + var(--tet-paint-gap)) !important; }
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-paint-below { padding-bottom: calc(var(--tet-block-padding) + var(--tet-paint-gap)) !important; }
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-heading.tet-paint-above { padding-top: calc(var(--tet-h4) + var(--tet-paint-gap)) !important; }
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-heading.tet-paint-below { padding-bottom: calc(var(--tet-h4) + var(--tet-paint-gap)) !important; }
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-h1.tet-paint-above { padding-top: calc(var(--tet-h1) + var(--tet-paint-gap)) !important; }
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-h1.tet-paint-below { padding-bottom: calc(var(--tet-h1) + var(--tet-paint-gap)) !important; }
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-h2.tet-paint-above { padding-top: calc(var(--tet-h2) + var(--tet-paint-gap)) !important; }
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-h2.tet-paint-below { padding-bottom: calc(var(--tet-h2) + var(--tet-paint-gap)) !important; }
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-h3.tet-paint-above { padding-top: calc(var(--tet-h3) + var(--tet-paint-gap)) !important; }
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-h3.tet-paint-below { padding-bottom: calc(var(--tet-h3) + var(--tet-paint-gap)) !important; }
 .tet-resize-overlay {
   position: fixed;
   z-index: 1000;

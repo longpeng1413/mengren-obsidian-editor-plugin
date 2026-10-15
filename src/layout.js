@@ -1,7 +1,7 @@
 const { ViewPlugin, Decoration } = require('@codemirror/view');
 const { RangeSetBuilder, EditorState } = require('@codemirror/state');
 const { editorInfoField } = require('obsidian');
-const { classify, blankSpacing } = require('./markdown');
+const { classify, blankSpacing, paintedGaps } = require('./markdown');
 
 function layoutExtension(plugin) {
   const decorations = ViewPlugin.fromClass(class {
@@ -24,8 +24,9 @@ function layoutExtension(plugin) {
       // line. Focus changes update decorations without changing document text.
       const inputRanges = editable && (view.hasFocus || emptyDocument) ?
         view.state.selection.ranges.map(r=>[doc.lineAt(r.from).number,doc.lineAt(r.to).number]) : [];
-      const { kinds, lines, continuations, quotes, quoteBlanks, indentedCode } = classify(doc.toString());
+      const { kinds, lines, continuations, quotes, quoteBlanks, indentedCode, fenceOf } = classify(doc.toString());
       const extraRows=plugin.settings.preserveExtraBlankLines ? blankSpacing({kinds,lines}).rows : new Set();
+      const paint=paintedGaps({kinds,lines,quotes,fenceOf});
       const tabRows=new Set();
       if(plugin.settings.tabKnowledgeLines) {
         const keys=tabKnowledgeKeys(doc.toString());
@@ -78,6 +79,9 @@ function layoutExtension(plugin) {
           if(kind==='heading') attrs.class+=` tet-h${Math.min(6,(lines[n-1].text.match(/^\s*(#+)/)?.[1] || '#').length)}`;
           if((attrs.class.includes('tet-gap') || attrs.class.includes('tet-quote-gap')) && inputRanges.some(([from,to])=>n>=from&&n<=to)) attrs.class+=' tet-input-gap';
           if(extraRows.has(n-1)) attrs.class+=' tet-extra-blank';
+          if(kind==='blank' && paint.blanks.has(n-1)) attrs.class+=paint.blanks.get(n-1)===2 ? ' tet-paint-gap tet-paint-gap-2' : ' tet-paint-gap';
+          if(paint.above.has(n-1)) attrs.class+=' tet-paint-above';
+          if(paint.below.has(n-1)) attrs.class+=' tet-paint-below';
           builder.add(line.from,line.from,Decoration.line({attributes:attrs}));
         }
       }
@@ -205,9 +209,13 @@ function applyLayout(doc, settings) {
     '--tet-h3': settings.headingH3 + 'em',
     '--tet-h4': settings.headingH4 + 'em',
     '--tet-list-indent': settings.listIndent + 'em',
-    '--tet-image-padding': settings.imagePadding + 'em',
-    '--tet-table-padding': settings.tablePadding + 'em',
   };
+  // Following the body, tables/images fall back to --tet-paint-gap (half the
+  // visible prose gap); only explicit values are written as variables.
+  if(!settings.mediaFollowsBody) {
+    vars['--tet-image-padding']=settings.imagePadding+'em';
+    vars['--tet-table-padding']=settings.tablePadding+'em';
+  }
   let style = doc.getElementById('tet-layout-vars');
   if (!style) { style = doc.createElement('style'); style.id = 'tet-layout-vars'; doc.head.appendChild(style); }
   // Also reaches Obsidian's temporary print tree; settings travel in a style

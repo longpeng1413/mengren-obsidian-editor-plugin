@@ -46,13 +46,17 @@ class ImageResizeManager {
     doc.addEventListener('click',click,true);
     doc.addEventListener('keydown',key,true);
     doc.addEventListener('scroll',scroll,true);
-    doc.defaultView.addEventListener('resize',scroll);
+    // Keep the window itself: once a popout closes, doc.defaultView is null.
+    const win = doc.defaultView;
+    win?.addEventListener('resize',scroll);
     this.bindings.set(doc,()=>{
       doc.removeEventListener('pointerdown',pointer,true); doc.removeEventListener('click',click,true);
       doc.removeEventListener('keydown',key,true); doc.removeEventListener('scroll',scroll,true);
-      doc.defaultView.removeEventListener('resize',scroll);
+      win?.removeEventListener('resize',scroll);
     });
   }
+
+  unbind(doc) { this.bindings.get(doc)?.(); this.bindings.delete(doc); }
 
   annotate(el,ctx) { this.contexts.set(el,ctx); }
 
@@ -202,9 +206,10 @@ class ImageResizeManager {
       this.position({left:corner.includes('w') ? initial.right-dimensions.width : initial.left,
         top:corner.includes('n') ? initial.bottom-dimensions.height : initial.top, ...dimensions});
     };
+    const win = doc.defaultView;
     const cleanup = () => {
       doc.removeEventListener('pointermove',move,true); doc.removeEventListener('pointerup',end,true);
-      doc.removeEventListener('pointercancel',cancel,true); doc.defaultView.removeEventListener('blur',cancel);
+      doc.removeEventListener('pointercancel',cancel,true); win?.removeEventListener('blur',cancel);
       s.cleanup = null; s.dragging = false;
     };
     const cancel = () => { cleanup(); this.close(); };
@@ -217,7 +222,7 @@ class ImageResizeManager {
     };
     s.cleanup = cleanup;
     doc.addEventListener('pointermove',move,true); doc.addEventListener('pointerup',end,true);
-    doc.addEventListener('pointercancel',cancel,true); doc.defaultView.addEventListener('blur',cancel);
+    doc.addEventListener('pointercancel',cancel,true); win?.addEventListener('blur',cancel);
   }
 
   async commit(source,width,height) {

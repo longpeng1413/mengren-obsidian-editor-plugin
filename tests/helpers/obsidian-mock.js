@@ -24,6 +24,7 @@ class Setting {
   constructor(el){this.settingEl=el.createDiv({cls:'setting-item'});this.info=this.settingEl.createDiv();this.controlEl=this.settingEl.createDiv();}
   setName(name){this.info.createDiv({text:name});return this;}
   setDesc(desc){this.info.createDiv({text:desc,cls:'tet-muted'});return this;}
+  setDisabled(disabled){this.settingEl.classList.toggle('is-disabled',disabled);for(const input of this.controlEl.querySelectorAll('input,button,select'))input.disabled=disabled;return this;}
   make(tag,type){const inputEl=document.createElement(tag);if(type)inputEl.type=type;this.controlEl.appendChild(inputEl);const c={inputEl};for(const method of ['setValue','setButtonText','setTooltip','setIcon','setPlaceholder','setLimits','setDynamicTooltip','setCta','setWarning','setDisabled']) c[method]=(...args)=>{
     if(method==='setValue'){inputEl.value=String(args[0]);if(type==='checkbox')inputEl.checked=args[0];}
     if(method==='setButtonText')inputEl.textContent=args[0];

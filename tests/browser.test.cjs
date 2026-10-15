@@ -234,7 +234,8 @@ test('quote, prose, list and standalone indented code have equal external block 
     // Multi-line quote/code LP blocks consist of multiple CM lines.
     if(mode==='live') {
       const endings=await page.locator('.tet-block-end').evaluateAll(ns=>ns.map(n=>n.getBoundingClientRect().bottom));
-      for(let i=1;i<boxes.length;i++) assert.ok(Math.abs(boxes[i].top+boxes[i].padTop-endings[i-1]+4.48-8.96)<0.1,JSON.stringify(boxes));
+      // Entering/leaving the quote bar adds its restored outside half (9.44px).
+      for(let i=1;i<boxes.length;i++) assert.ok(Math.abs(boxes[i].top+boxes[i].padTop-endings[i-1]+4.48-8.96-(i===4||i===5?9.44:0))<0.1,JSON.stringify(boxes));
     } else {
       for(let i=1;i<boxes.length;i++) assert.ok(Math.abs(boxes[i].top+boxes[i].padTop-boxes[i-1].bottom+boxes[i-1].padBottom-8.96)<0.1,JSON.stringify(boxes));
     }
@@ -248,6 +249,120 @@ test('quote, prose, list and standalone indented code have equal external block 
     assert.equal(await page.evaluate(()=>fixture.text()),input);
   }
 });
+// Visible gap between two prose paragraphs at 16px, line-height 1.62: two block
+// paddings (4.48px) plus two half-leadings (4.96px) around ~1em CJK glyphs.
+const VISIBLE_GAP=18.88;
+test('Live Preview keeps one visible prose gap between text and code, quote, Callout and table paint',async()=>{
+  const table='| 层次 | 职责 |\n| --- | --- |\n| 甲 | 职责说明 |';
+  const input=['正文一','正文二\n```text\n贴着的代码\n```\n正文三','> 引用',table,'```text\n代码\n```','- 列表','> [!note] 提示\n> 内容','\t知识行',table,table,'结尾'].join('\n\n');
+  await setup(input);
+  const measure=()=>page.evaluate(()=>{
+    // Painted: code background rows, quote rows (bar covers their padding), table borders.
+    // Text: glyph box = content box minus half the leading on each side.
+    const boxes=[];
+    for(const el of document.querySelector('.cm-content').children) {
+      const r=el.getBoundingClientRect(),c=getComputedStyle(el);
+      if(r.height<0.5||el.classList.contains('tet-gap'))continue;
+      const table=el.querySelector('table');
+      const kind=table?'table':el.matches('.HyperMD-codeblock')?'code':el.matches('.HyperMD-quote')?'quote':'text';
+      let top=r.top,bottom=r.bottom;
+      if(table){const t=table.getBoundingClientRect();top=t.top;bottom=t.bottom;}
+      else if(kind!=='text'){top+=parseFloat(c.borderTopWidth);bottom-=parseFloat(c.borderBottomWidth);}
+      else {
+        const half=(parseFloat(c.lineHeight)-parseFloat(c.fontSize))/2;
+        top+=parseFloat(c.borderTopWidth)+parseFloat(c.paddingTop)+half;
+        bottom-=parseFloat(c.borderBottomWidth)+parseFloat(c.paddingBottom)+half;
+      }
+      const last=boxes.at(-1);
+      // Consecutive rows of one code block or quote form one painted box.
+      if(last && kind===last.kind && kind!=='text' && kind!=='table' && Math.abs(top-last.bottom)<0.5) {last.bottom=bottom;continue;}
+      boxes.push({kind,top,bottom,text:el.textContent.slice(0,6)});
+    }
+    return boxes.slice(1).map((b,i)=>({pair:boxes[i].kind+'→'+b.kind,from:boxes[i].text,gap:b.top-boxes[i].bottom}));
+  });
+  const gaps=await measure();
+  assert.equal(gaps.length,12,JSON.stringify(gaps));
+  for(const g of gaps) assert.ok(Math.abs(g.gap-VISIBLE_GAP)<0.15,JSON.stringify(gaps));
+  assert.deepEqual(await page.locator('.tet-paint-below,.tet-paint-above').count(),2);
+  // The restored half is display only; a caret on that separator still gets a full input row.
+  await page.locator('.tet-paint-gap').first().evaluate(n=>{const v=fixture.cm;v.focus();v.dispatch({selection:{anchor:v.posAtDOM(n)}});});
+  await page.waitForTimeout(50);
+  assert.ok(await page.locator('.cm-line.tet-input-gap').first().evaluate(n=>n.getBoundingClientRect().height)>20);
+  assert.equal(await page.evaluate(()=>fixture.text()),input);
+});
+
+test('Reading and PDF print wrappers keep the same visible gap around code, quote, Callout, table and image paint',async()=>{
+  await setup('','reading');
+  const table='<table><thead><tr><th>层次</th><th>职责</th></tr></thead><tbody><tr><td>甲</td><td>职责说明</td></tr></tbody></table>';
+  const image='<p><span class="internal-embed image-embed" src="图.png"><img src="https://fixture.invalid/图.png" width="200"></span></p>';
+  const blocks=[['p','<p>正文一</p>'],['p','<p>正文二</p>'],['pre','<pre><code>代码</code></pre>'],['blockquote','<blockquote><p>引用</p></blockquote>'],['table',table],
+    ['ul','<ul><li>列表</li></ul>'],['p',image],['div','<div class="callout" style="margin:16px 0;padding:12px">提示</div>'],['table',table],
+    ['pre','<pre class="tet-tab-knowledge"><code class="tet-tab-code"><span class="tet-tab-row">知识行</span></code></pre>'],['p',image],['pre','<pre><code>代码</code></pre>'],['p','<p>结尾</p>']];
+  const measure=()=>page.evaluate(()=>{
+    const out={};
+    for(const root of document.querySelectorAll('.markdown-preview-sizer,.print > .markdown-preview-view')) {
+      const boxes=[...root.children].map(section=>{
+        const paint=section.querySelector('table,img,pre:not(.tet-tab-knowledge),blockquote,.callout');
+        if(paint){const r=paint.getBoundingClientRect();return {top:r.top,bottom:r.bottom};}
+        const text=[...section.querySelectorAll('p,li,.tet-tab-row')],first=text[0],lastEl=text.at(-1);
+        const edge=(el,side)=>{const r=el.getBoundingClientRect(),c=getComputedStyle(el),half=(parseFloat(c.lineHeight)-parseFloat(c.fontSize))/2;
+          return side==='top'?r.top+parseFloat(c.paddingTop)+half:r.bottom-parseFloat(c.paddingBottom)-half;};
+        return {top:edge(first,'top'),bottom:edge(lastEl,'bottom')};
+      });
+      out[root.matches('.markdown-preview-sizer')?'reading':'pdf']=boxes.slice(1).map((b,i)=>Math.round((b.top-boxes[i].bottom)*100)/100);
+    }
+    const img=document.querySelector('.markdown-preview-sizer img'),p=img.closest('p');
+    out.imageExtra=p.getBoundingClientRect().height-img.getBoundingClientRect().height;
+    return out;
+  });
+  await page.evaluate(([blocks])=>{
+    // Reading: one .el-* section per block. PDF export: plain divs under .print > .markdown-preview-view.
+    const sections=cls=>blocks.map(([tag,html])=>`<div${cls?` class="el-${tag}"`:''}>${html}</div>`).join('');
+    fixture.root.innerHTML=`<div class="markdown-preview-sizer markdown-preview-section">${sections(true)}</div>`;
+    const print=document.body.appendChild(document.createElement('div'));print.className='print';
+    print.innerHTML=`<div class="markdown-preview-view markdown-rendered">${sections(false)}</div>`;
+  },[blocks]);
+  await page.waitForFunction(()=>[...document.images].every(i=>i.complete&&i.naturalWidth));
+  const screen=await measure();
+  assert.equal(screen.reading.length,blocks.length-1);
+  for(const gap of screen.reading) assert.ok(Math.abs(gap-VISIBLE_GAP)<0.15,JSON.stringify(screen));
+  assert.deepEqual(screen.pdf,screen.reading);
+  // No descender gap under a standalone image: only its two outside halves (9.44px each).
+  assert.ok(Math.abs(screen.imageExtra-VISIBLE_GAP)<0.15,String(screen.imageExtra));
+  await page.emulateMedia({media:'print'});
+  assert.deepEqual(await measure(),screen);
+  await page.emulateMedia({media:'screen'});
+  // Separately tuned tables/images: 0.5em (8px) outside padding replaces the 9.44px half.
+  await page.evaluate(async()=>{Object.assign(fixture.plugin.settings,{mediaFollowsBody:false,tablePadding:0.5,imagePadding:0.5});await fixture.plugin.saveSettings();});
+  const custom=await measure();
+  assert.ok(Math.abs(custom.reading[3]-(VISIBLE_GAP/2+8))<0.15,JSON.stringify(custom));
+  assert.ok(Math.abs(custom.reading[7]-(VISIBLE_GAP/2+8))<0.15,JSON.stringify(custom));
+  assert.ok(Math.abs(custom.imageExtra-16)<0.15,JSON.stringify(custom));
+  await page.evaluate(async()=>{Object.assign(fixture.plugin.settings,{mediaFollowsBody:true});await fixture.plugin.saveSettings();document.querySelector('.print').remove();});
+});
+
+test('a closed popout window does not break plugin unload or later reloads',async()=>{
+  await setup('正文');
+  const result=await page.evaluate(()=>{
+    // An iframe stands in for a popout: after removal its document has no window.
+    const frame=document.body.appendChild(document.createElement('iframe'));
+    const popout=frame.contentDocument;fixture.plugin.bindDocument(popout);
+    const bound=fixture.plugin.images.bindings.has(popout);
+    frame.remove();
+    let error=null;try{fixture.plugin.onunload();}catch(e){error=String(e);}
+    return {bound,closedWindow:popout.defaultView,error};
+  });
+  assert.deepEqual(result,{bound:true,closedWindow:null,error:null});
+  // The host's window-close event also releases that document's listeners.
+  await setup('正文');
+  assert.ok(await page.evaluate(()=>{
+    const frame=document.body.appendChild(document.createElement('iframe'));
+    const popout=frame.contentDocument;fixture.plugin.bindDocument(popout);
+    fixture.callbacks.get('window-close')(null,{document:popout});frame.remove();
+    return !fixture.plugin.images.bindings.has(popout)&&!fixture.plugin.documents.has(popout);
+  }));
+});
+
 test('list indented paragraphs use same block gaps without altering nesting',async()=>{
   const input='- A\n\n  child one\n\n  child two\n\n- B\n\n正文';
   await setup(input);
@@ -370,7 +485,8 @@ test('quoted paragraph separators collapse and nested lists retain equal knowled
       assert.equal(await page.locator('.tet-quote-gap').evaluate(n=>n.getBoundingClientRect().height),0);
       const starts=await page.locator('.tet-block-start').evaluateAll(ns=>ns.map(n=>n.getBoundingClientRect().top+parseFloat(getComputedStyle(n).paddingTop)));
       const ends=await page.locator('.tet-block-end').evaluateAll(ns=>ns.map(n=>n.getBoundingClientRect().bottom-parseFloat(getComputedStyle(n).paddingBottom)));
-      assert.equal(starts.length,7);for(let i=1;i<starts.length;i++)assert.ok(Math.abs(starts[i]-ends[i-1]-8.96)<.1);
+      // Quote paragraphs stay compact inside the bar; leaving the bar adds its outside half.
+      assert.equal(starts.length,7);for(let i=1;i<starts.length;i++)assert.ok(Math.abs(starts[i]-ends[i-1]-8.96-(i===2?9.44:0))<.1);
     } else {
       const ps=await page.locator('blockquote > p').evaluateAll(ns=>ns.map(n=>({top:n.getBoundingClientRect().top,bottom:n.getBoundingClientRect().bottom,pad:parseFloat(getComputedStyle(n).paddingTop)})));
       assert.ok(Math.abs(ps[1].top+ps[1].pad-ps[0].bottom-8.96)<.1);

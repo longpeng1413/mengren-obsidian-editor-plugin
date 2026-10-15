@@ -6,7 +6,7 @@ An MIT-licensed Obsidian plugin for compact Markdown layout, persistent image re
 
 ## Install
 
-Download `trader-editor-tools-0.1.6-install.zip` from Releases (the local Chinese installer is `猛人obsidian编辑插件-0.1.6-安装包.zip`). GitHub assets use distinct ASCII suffixes to avoid normalized-name collisions. Extract the inner `trader-editor-tools` folder into **your vault**, not the Obsidian program directory:
+Download `trader-editor-tools-0.1.7-install.zip` from Releases (the local Chinese installer is `猛人obsidian编辑插件-0.1.7-安装包.zip`). GitHub assets use distinct ASCII suffixes to avoid normalized-name collisions. Extract the inner `trader-editor-tools` folder into **your vault**, not the Obsidian program directory:
 
 ```text
 VAULT/.obsidian/plugins/trader-editor-tools/
@@ -23,6 +23,7 @@ For upgrades, disable the plugin, replace its runtime files, and enable it again
 
 - Standard Markdown paragraph formatting, with preview, optional local backup and one editor undo transaction. Existing notes are never reformatted automatically.
 - Compact layout: body line-height 1.62; paragraphs and top-level list items have 0.28em padding on each side. No extra native paragraph/list gap is stacked on top.
+- Painted blocks (fenced code backgrounds, quote bars, Callout boxes, table borders, standalone images) keep half of the visible prose gap outside their paint (block padding + half the line leading, about 0.59em). Paint to text and paint to paint therefore look like text to text (about 18.9px at 16px). Headings keep their larger spacing. Live Preview, Reading and PDF export use the same rule; Reading/PDF match block wrappers by content, so they do not depend on Reading-only section classes. Only unindented code and quotes count; indented ones inside lists keep list spacing. "Table and image spacing follows body" is on by default; turn it off to tune image/table padding separately.
 - Symmetric heading padding: H1 0.95em, H2 0.82em, H3 0.70em, H4–H6 0.58em on each side.
 - Click an image and drag any corner to resize proportionally; hold Alt for independent width/height. Dimensions are saved using Obsidian's native embed/alt syntax.
 - Markdown table images and Excalidraw embeds are supported. The table pipe is escaped and column counts are validated before writing.
