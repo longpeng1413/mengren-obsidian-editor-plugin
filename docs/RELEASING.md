@@ -38,4 +38,12 @@ Release assets:
 
 ## Community directory
 
-将来提交 Obsidian 社区列表前，复核当前官方提交规则、API 和 manifest 要求，包含 MIT LICENSE、公开 README、正确的 tag/Release 资产并等待审核。不要在 README 宣称已上架，直到审核和列表确实完成。
+2026-10-15 复核的官方流程（2026-05-12 起启用 Obsidian Community，不再向 `obsidian-releases` 提交 PR）：
+
+1. 仓库根目录需要 `README.md`、`LICENSE`、`manifest.json`；默认分支 HEAD 的 manifest 会被读取。
+2. 发布 GitHub Release，tag 与 `version` 相同，附件含 `main.js`、`manifest.json`、`styles.css`（本仓库推送 tag 后由 `release.yml` 自动完成）。
+3. 作者用 Obsidian 账号登录 community.obsidian.md 开发者后台，连接 GitHub 账号验证仓库所有权，选择仓库提交。
+4. 自动审核几分钟出结果（政策、代码质量、已知漏洞、恶意代码）；通过后 24 小时内可在 Obsidian 内搜索安装。之后**每个新版本**都会被自动审核，不通过的版本 24 小时内从搜索下架；后台可对任意分支 / tag / commit 做预检扫描。
+5. 发布前本地自查：官方 `eslint-plugin-obsidianmd`（recommended 配置）。
+
+manifest 硬性规则（`validate-manifest`）：`id`、`name`、`description` 不得包含 “obsidian” 或 “plugin”（不区分大小写）；`description` 10–250 字符、大写字母开头、句号结尾、只能含英文字母数字空格和 `.,!?'"-`。开发者政策还要求：不得暗示官方出品、无客户端遥测、不自行更新、联网 / 付费 / 账号 / 访问库外文件需在 README 说明。不要在 README 宣称已上架，直到目录中确实可搜索安装。

@@ -1,9 +1,9 @@
-const { Plugin, PluginSettingTab, Setting, Modal, Notice, MarkdownView, normalizePath } = require('obsidian');
-const { formatNote, scanImages, imageDimensions, isImageTarget, isExcalidraw } = require('./markdown');
-const { captureSelection, commitStyle, HEX } = require('./text-style');
-const { textStyleExtension } = require('./text-style-view');
-const { layoutExtension, applyLayout, decorateTabKnowledge, refreshTabKnowledge, decorateExtraBlankLines, refreshExtraBlankLines } = require('./layout');
-const { ImageResizeManager, cleanTarget } = require('./image-resize');
+import { Plugin, PluginSettingTab, Setting, Modal, Notice, normalizePath } from 'obsidian';
+import { formatNote, scanImages, imageDimensions, isImageTarget, isExcalidraw } from './markdown.mjs';
+import { captureSelection, commitStyle, HEX } from './text-style.mjs';
+import { textStyleExtension } from './text-style-view.mjs';
+import { layoutExtension, applyLayout, decorateTabKnowledge, refreshTabKnowledge, decorateExtraBlankLines, refreshExtraBlankLines } from './layout.mjs';
+import { ImageResizeManager, cleanTarget } from './image-resize.mjs';
 
 const DEFAULTS = {
   layoutVersion:2, layoutEnabled:true, lineHeight:1.62, blockPadding:0.28,
@@ -48,7 +48,7 @@ class PaletteModal extends Modal {
   constructor(plugin,snapshot,kind) { super(plugin.app); this.plugin=plugin; this.snapshot=snapshot; this.kind=kind; }
   onOpen() {
     this.contentEl.classList.add('tet-modal');
-    this.contentEl.createEl('h2',{text:this.kind === 'color' ? '选择文字颜色' : '选择背景高亮'});
+    this.titleEl.setText(this.kind === 'color' ? '选择文字颜色' : '选择背景高亮');
     this.contentEl.createEl('p',{text:'点击颜色应用到打开面板前选中的文字。',cls:'tet-muted'});
     const grid=this.contentEl.createDiv({cls:'tet-palette'});
     for (const color of this.plugin.settings.colors) {
@@ -69,7 +69,7 @@ class FormatPreviewModal extends Modal {
   }
   onOpen() {
     const el=this.contentEl; el.classList.add('tet-modal');
-    el.createEl('h2',{text:'格式化当前笔记 · 预览'});
+    this.titleEl.setText('格式化当前笔记 · 预览');
     el.createEl('p',{text:`将插入 ${this.result.inserted} 个空行；保护 ${this.result.protectedLines} 行特殊结构。不会修改文字、图片链接或尺寸。`});
     el.createEl('p',{text:this.plugin.settings.splitProseLines ? '当前模式：把连续普通正文的物理换行分成独立段落。若原笔记用换行手工折行，请关闭设置中的“逐行分段”后再运行。' : '当前模式：保留正文手工换行，只分隔标题、图片、列表和表格。',cls:'tet-muted'});
     const columns=el.createDiv({cls:'tet-format-preview'});
@@ -99,7 +99,7 @@ class SizeModal extends Modal {
   constructor(plugin,source) { super(plugin.app); this.plugin=plugin; this.source=source; }
   onOpen() {
     const el=this.contentEl; el.classList.add('tet-modal');
-    el.createEl('h2',{text:'设置图片尺寸'});
+    this.titleEl.setText('设置图片尺寸');
     el.createEl('p',{text:this.source.token.target,cls:'tet-muted'});
     const current=imageDimensions(this.source.token);
     let width=String(current?.width ?? 320), height=current?.height===null || !current ? '' : String(current.height);
@@ -117,11 +117,10 @@ class TraderSettings extends PluginSettingTab {
   constructor(app,plugin) { super(app,plugin); this.plugin=plugin; }
   display() {
     const p=this.plugin, s=p.settings, el=this.containerEl; el.empty();
-    el.createEl('h2',{text:'猛人obsidian编辑插件'});
     el.createEl('p',{text:'格式化只在主动运行命令并确认预览后修改笔记。图片尺寸只在完成拖动或点击保存后写回。',cls:'tet-muted'});
     const toggle=(name,description,key)=>new Setting(el).setName(name).setDesc(description).addToggle(t=>t.setValue(s[key]).onChange(async value=>{s[key]=value;await p.saveSettings();}));
     const number=(name,key,min,max,step=1)=>new Setting(el).setName(name).addSlider(t=>t.setLimits(min,max,step).setValue(s[key]).setDynamicTooltip().onChange(async value=>{s[key]=value;await p.saveSettings();}));
-    el.createEl('h3',{text:'段落与排版'});
+    new Setting(el).setName('段落与排版').setHeading();
     toggle('启用统一排版','影响 Live Preview、阅读模式和 PDF；不改写笔记源码。','layoutEnabled');
     number('正文内部行距（倍）','lineHeight',1,2.4,0.01);
     number('正文 / 顶层列表每侧留白（em）','blockPadding',0,2,0.01);
@@ -134,7 +133,7 @@ class TraderSettings extends PluginSettingTab {
       .addToggle(t=>t.setValue(s.mediaFollowsBody).onChange(async value=>{s.mediaFollowsBody=value;await p.saveSettings();this.display();}));
     number('图片上下每侧留白（em）','imagePadding',0,3,0.01).setDisabled(s.mediaFollowsBody);
     number('表格上下每侧留白（em）','tablePadding',0,3,0.01).setDisabled(s.mediaFollowsBody);
-    new Setting(el).setName('恢复已验证 WoLai 基准').setDesc('正文行距 1.62；正文和顶层列表每侧 0.28em；标题上下对称。不会修改笔记。')
+    new Setting(el).setName('恢复已验证 wolai 基准').setDesc('正文行距 1.62；正文和顶层列表每侧 0.28em；标题上下对称。不会修改笔记。')
       .addButton(b=>b.setButtonText('恢复基准').onClick(async()=>{
         for(const key of ['layoutVersion','lineHeight','blockPadding','headingH1','headingH2','headingH3','headingH4','listIndent','mediaFollowsBody','imagePadding','tablePadding']) s[key]=DEFAULTS[key];
         await p.saveSettings();this.display();
@@ -147,19 +146,19 @@ class TraderSettings extends PluginSettingTab {
     toggle('Tab 缩进按知识行显示','独立 Tab 缩进块中，每个物理行都使用与列表项相同的块间距；自动折行仍紧凑。阅读/PDF 同步显示。代码围栏和空格缩进代码不受影响；若 Tab 本来表示程序代码，请关闭。只改变显示，不写正文。','tabKnowledgeLines');
     toggle('保存原文备份','格式化、阅读模式图片写回前，在本插件 backups 目录保存原文。备份不会自动删除。','backupEnabled');
     new Setting(el).setName('备份位置').setDesc(`${p.app.vault.configDir}/plugins/${p.manifest.id}/backups/`);
-    el.createEl('h3',{text:'图片拖拽缩放'});
+    new Setting(el).setName('图片拖拽缩放').setHeading();
     toggle('启用图片拖拽','点击图片出现四角控制点；拖动默认保持比例，Alt 自由调整，Esc 取消。','imageResize');
     toggle('允许阅读模式调整','阅读模式调整也会写回 Markdown；没有编辑窗格时先保存原文备份。','readingResize');
     toggle('默认自由宽高','开启后直接拖动保存宽×高；关闭时按 Alt 临时自由调整。','freeResize');
     number('拖拽最大宽度（px）','maxImageWidth',100,8192,10);
     new Setting(el).setName('Excalidraw 检测').setDesc(p.excalidrawAvailable() ? '已检测到启用的 Excalidraw；使用原生嵌入尺寸语法。' : '未检测到启用的 Excalidraw。普通图片和其他功能照常可用；绘图需启用 Excalidraw 后测试。');
-    el.createEl('h3',{text:'常用颜色'});
+    new Setting(el).setName('常用颜色').setHeading();
     el.createEl('p',{text:'每行依次为名称、文字色、背景色。前 9 行对应固定快捷键槽位；颜色、高亮、下划线独立叠加，高亮不改文字颜色。深色主题请按需同时设置文字色以确保对比度。',cls:'tet-muted'});
     s.colors.forEach((color,index)=>{
       new Setting(el).setName(`槽位 ${index+1}`)
         .addText(t=>t.setValue(color.name).onChange(async v=>{color.name=v.trim().slice(0,40)||`颜色 ${index+1}`;await p.saveSettings();}))
-        .addColorPicker(t=>{t.inputEl.setAttribute('aria-label','文字颜色');t.inputEl.title='文字颜色';t.setValue(color.text).onChange(async v=>{color.text=v;await p.saveSettings();});})
-        .addColorPicker(t=>{t.inputEl.setAttribute('aria-label','背景色');t.inputEl.title='背景色';t.setValue(color.background).onChange(async v=>{color.background=v;await p.saveSettings();});})
+        .addColorPicker(t=>{t.colorPickerEl.setAttribute('aria-label','文字颜色');t.colorPickerEl.title='文字颜色';t.setValue(color.text).onChange(async v=>{color.text=v;await p.saveSettings();});})
+        .addColorPicker(t=>{t.colorPickerEl.setAttribute('aria-label','背景色');t.colorPickerEl.title='背景色';t.setValue(color.background).onChange(async v=>{color.background=v;await p.saveSettings();});})
         .addExtraButton(b=>b.setIcon('trash-2').setTooltip('删除颜色；后续槽位前移').onClick(async()=>{
           if(s.colors.length===1) return new Notice('请至少保留一个颜色');
           s.colors.splice(index,1);await p.saveSettings();this.display();
@@ -170,7 +169,7 @@ class TraderSettings extends PluginSettingTab {
   }
 }
 
-module.exports = class TraderEditorTools extends Plugin {
+export default class TraderEditorTools extends Plugin {
   async onload() {
     this.settings=loadValidated(await this.loadData());
     this.cmViews=new Set(); this.documents=new Set();
@@ -222,7 +221,7 @@ module.exports = class TraderEditorTools extends Plugin {
     }
     this.registerEvent(this.app.workspace.on('editor-menu',(menu,editor,info)=>{
       if(!editor.getSelection()) return;
-      let snapshot; try { snapshot=captureSelection(editor,info.file);snapshot.info=info; } catch(_) { return; }
+      let snapshot; try { snapshot=captureSelection(editor,info.file);snapshot.info=info; } catch { return; }
       menu.addSeparator();
       for(const [kind,label,icon] of [['color','猛人编辑：文字颜色…','palette'],['highlight','猛人编辑：背景高亮…','highlighter'],['underline','猛人编辑：切换下划线','underline'],['clear-color','猛人编辑：清除文字颜色','eraser'],['clear-highlight','猛人编辑：清除背景高亮','eraser'],['clear-underline','猛人编辑：清除下划线','eraser'],['clear','猛人编辑：清除全部插件样式（保留 Markdown）','eraser']]) {
         menu.addItem(item=>item.setTitle(label).setIcon(icon).onClick(()=>{
@@ -241,7 +240,7 @@ module.exports = class TraderEditorTools extends Plugin {
   excalidrawAvailable() {
     // Excalidraw is an optional third-party plugin. This guarded registry probe
     // is the only dependency on Obsidian's non-public plugin registry.
-    try { return !!this.app.plugins?.getPlugin?.('obsidian-excalidraw-plugin'); } catch(_) { return false; }
+    try { return !!this.app.plugins?.getPlugin?.('obsidian-excalidraw-plugin'); } catch { return false; }
   }
   imageTokens(text,notePath) {
     return scanImages(text).map(token=>{
@@ -266,4 +265,4 @@ module.exports = class TraderEditorTools extends Plugin {
     for(const doc of this.documents || []) {refreshTabKnowledge(doc,null);refreshExtraBlankLines(doc,null);doc.body.classList.remove('tet-enabled');doc.getElementById('tet-layout-vars')?.remove();}
     this.cmViews?.clear();
   }
-};
+}

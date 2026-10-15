@@ -1,8 +1,8 @@
-const { Notice, MarkdownView, editorInfoField } = require('obsidian');
-const { resizedToken, sameDocumentPatch, dragSize, isExcalidraw, isImageTarget, tableCellRange } = require('./markdown');
+import { Notice, MarkdownView, editorInfoField } from 'obsidian';
+import { resizedToken, sameDocumentPatch, dragSize, isExcalidraw, isImageTarget, tableCellRange } from './markdown.mjs';
 
 function cleanTarget(value) {
-  try { value = decodeURIComponent(value); } catch (_) {}
+  try { value = decodeURIComponent(value); } catch { /* not URI-encoded: keep the raw target */ }
   return value.replace(/\\([ ()])/g,'$1').replace(/\\?\|.*$/,'').replace(/^<|>$/g,'').split('#')[0].replace(/^\.\//,'');
 }
 
@@ -88,22 +88,20 @@ class ImageResizeManager {
     const text = editor ? editor.getValue() : await this.plugin.app.vault.read(file);
     const tokens = this.plugin.imageTokens(text,file.path);
     let candidates = tokens;
-    let rangeStart = null, rangeEnd = null;
     const tableNode=hit.element.closest('table');
     const tableCell=hit.element.closest('td,th');
     if (cm) {
       let pos;
-      try { pos = cm.posAtDOM(hit.embed); } catch (_) { try { pos = cm.posAtDOM(hit.element); } catch (_) {} }
+      try { pos = cm.posAtDOM(hit.embed); } catch { try { pos = cm.posAtDOM(hit.element); } catch { /* neither node belongs to this editor */ } }
       if (Number.isInteger(pos)) {
         const line = cm.state.doc.lineAt(pos);
         const local = tokens.filter(t=>t.start >= line.from && t.start <= line.to);
         const covering = local.filter(t=>pos >= t.start && pos <= t.end);
         candidates = covering.length ? covering : local.length ? local : tokens;
-        rangeStart = line.from; rangeEnd = line.to;
       }
       if(tableNode && tableCell) {
         let tableAnchor;
-        try{tableAnchor=cm.posAtDOM(tableNode);}catch(_){}
+        try{tableAnchor=cm.posAtDOM(tableNode);}catch{/* table widget is outside this editor */}
         const cellRange=Number.isInteger(tableAnchor) ? tableCellRange(text,tableAnchor,tableCell.parentElement.rowIndex,tableCell.cellIndex) : null;
         if(cellRange && cellRange.count===tableCell.parentElement.cells.length) {
           candidates=tokens.filter(t=>t.start>=cellRange.from && t.end<=cellRange.to);
@@ -258,4 +256,4 @@ class ImageResizeManager {
   }
   destroy() { this.resolveId++; this.close(); for (const cleanup of this.bindings.values()) cleanup(); this.bindings.clear(); }
 }
-module.exports = { ImageResizeManager, imageElement, cleanTarget };
+export { ImageResizeManager, imageElement, cleanTarget };

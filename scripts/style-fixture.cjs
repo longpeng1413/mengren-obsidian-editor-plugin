@@ -1,4 +1,4 @@
-const {stylePatch}=require('../src/text-style');
+const {stylePatch}=require('../src/text-style.mjs');
 const red='#d64545',blue='#367bd6',yellow='#ffe1bd';
 function styled(source,operations) {
   let text=source,start=text.indexOf('重要内容'),end=start+4;

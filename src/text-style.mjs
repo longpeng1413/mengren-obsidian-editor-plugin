@@ -1,5 +1,5 @@
-const {Lexer} = require('marked');
-const {classify} = require('./markdown');
+import { Lexer } from 'marked';
+import { classify } from './markdown.mjs';
 const HEX = /^#[0-9a-f]{6}$/i;
 const ACTIONS=new Set(['color','highlight','underline','clear-color','clear-highlight','clear-underline','clear']);
 
@@ -100,7 +100,7 @@ function stylePatch(text,start,end,kind,value) {
   const from=text.lastIndexOf('\n',start-1)+1,next=text.indexOf('\n',end),to=next<0?text.length:next;
   const data=classify(text),lineIndex=data.lines.findIndex(l=>l.start===from);
   if(data.indentedCode[lineIndex]||(data.kinds[lineIndex]==='protected'&&!data.quotes[lineIndex]&&!data.continuations[lineIndex]&&!/^\s*<(?:span|mark|u)\b/.test(text.slice(from,to))))throw new Error('代码块、元数据及其他受保护结构不应用文字样式');
-  if(data.table[lineIndex]&&/(?<!\\)\|/.test(text.slice(start,end)))throw new Error('请在同一个表格单元格内选择文字');
+  if(data.table[lineIndex]&&/(?:^|[^\\])\|/.test(text.slice(start,end)))throw new Error('请在同一个表格单元格内选择文字');
   const line=text.slice(from,to),prefix=textPrefix(line),lexer=new Lexer({gfm:true});
   lexer.lex(text);
   const tokens=lexer.inlineTokens(line.slice(prefix.length));
@@ -182,4 +182,4 @@ function semanticStyleRanges(text) {
   }
   return ranges;
 }
-module.exports={stylePatch,captureSelection,commitStyle,readStyleTag,semanticStyleRanges,HEX};
+export { stylePatch, captureSelection, commitStyle, readStyleTag, semanticStyleRanges, HEX };

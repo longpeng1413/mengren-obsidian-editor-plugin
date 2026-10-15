@@ -1,22 +1,27 @@
 {
   "name": "trader-editor-tools",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "license": "MIT",
-  "repository": {"type":"git","url":"https://github.com/longpeng1413/trader-editor-tools.git"},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/longpeng1413/mengren-obsidian-editor-plugin.git"
+  },
   "private": true,
-  "description": "猛人obsidian编辑插件：可直接安装、可重复构建，含回归测试。",
+  "description": "Mengren Editor: installable as is, reproducible build, with regression tests.",
   "scripts": {
     "build": "node scripts/build.cjs",
     "test": "node --test tests/core.test.cjs tests/text-style.test.cjs tests/browser.test.cjs",
     "test:core": "node --test tests/core.test.cjs tests/text-style.test.cjs",
     "test:browser": "node --test tests/browser.test.cjs"
   },
-  "devDependencies": {
-    "@codemirror/commands": "6.10.1",
+  "dependencies": {
     "@codemirror/state": "6.5.2",
     "@codemirror/view": "6.38.6",
+    "marked": "15.0.12"
+  },
+  "devDependencies": {
+    "@codemirror/commands": "6.10.1",
     "esbuild": "0.25.11",
-    "marked": "15.0.12",
     "playwright": "1.56.1"
   }
 }

@@ -1,4 +1,6 @@
-# 猛人obsidian编辑插件 / Mengren Obsidian Editor
+# Mengren Editor
+
+Formerly 猛人obsidian编辑插件. Since 0.1.8 the display name is **Mengren Editor** to follow the Obsidian Community directory rules; the internal ID `trader-editor-tools` is unchanged, so settings, hotkeys and backups carry over.
 
 An MIT-licensed Obsidian plugin for compact Markdown layout, persistent image resizing, text colors, highlights and underlines. Maintained by [longpeng1413](https://github.com/longpeng1413).
 
@@ -6,7 +8,7 @@ An MIT-licensed Obsidian plugin for compact Markdown layout, persistent image re
 
 ## Install
 
-Download `trader-editor-tools-0.1.7-install.zip` from Releases (the local Chinese installer is `猛人obsidian编辑插件-0.1.7-安装包.zip`). GitHub assets use distinct ASCII suffixes to avoid normalized-name collisions. Extract the inner `trader-editor-tools` folder into **your vault**, not the Obsidian program directory:
+Download `trader-editor-tools-0.1.8-install.zip` from Releases (the local Chinese installer is `Mengren Editor-0.1.8-安装包.zip`). GitHub assets use distinct ASCII suffixes to avoid normalized-name collisions. Extract the inner `trader-editor-tools` folder into **your vault**, not the Obsidian program directory:
 
 ```text
 VAULT/.obsidian/plugins/trader-editor-tools/
@@ -15,7 +17,7 @@ VAULT/.obsidian/plugins/trader-editor-tools/
   styles.css
 ```
 
-Enable **猛人obsidian编辑插件** in Settings → Community plugins. The UI is primarily Chinese. The original internal ID, folder `trader-editor-tools` and GitHub repository URL remain unchanged to preserve settings, hotkeys and backups; do not create a second folder for the same ID. Avoid an extra outer directory. Keep Excalidraw installed if you use drawings; this plugin does not replace it. The plugin is **not yet listed in the Obsidian community directory**.
+Enable **Mengren Editor** in Settings → Community plugins. The UI is primarily Chinese. The original internal ID, folder `trader-editor-tools` and GitHub repository URL remain unchanged to preserve settings, hotkeys and backups; do not create a second folder for the same ID. Avoid an extra outer directory. Keep Excalidraw installed if you use drawings; this plugin does not replace it. The plugin is **not yet listed in the Obsidian community directory**.
 
 For upgrades, disable the plugin, replace its runtime files, and enable it again. Preserve your `data.json` and `backups/` directory.
 

@@ -1,8 +1,12 @@
-# 猛人obsidian编辑插件
+# Mengren Editor（猛人编辑器）
 
-版本 **0.1.7**，MIT 开源。完整可安装插件，不需要安装 Node.js，不需要编译。优先支持 Windows / Obsidian 1.13.x / Live Preview；手机可安装，但尚未真机验收。
+> 原名「猛人obsidian编辑插件」。0.1.8 起为符合 Obsidian 社区目录规则（名称不能含 “Obsidian”），显示名改为 **Mengren Editor**；内部 ID `trader-editor-tools` 不变，已有设置、快捷键和备份不受影响。
+
+版本 **0.1.8**，MIT 开源。完整可安装插件，不需要安装 Node.js，不需要编译。优先支持 Windows / Obsidian 1.13.x / Live Preview；手机可安装，但尚未真机验收。
 
 [English](README.en.md) · [下载发布版](https://github.com/longpeng1413/trader-editor-tools/releases/latest) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md) · [架构](docs/ARCHITECTURE.md) · [测试记录](TESTING.md) · [问题反馈](https://github.com/longpeng1413/trader-editor-tools/issues)
+
+0.1.8 按 Obsidian 官方社区目录规范整理：英文名称与描述、设置页标题写法、手机兼容的正则写法，官方检查工具零错误。
 
 0.1.7 统一 **代码块、引用、提示框、表格、图片的外侧空白**：它们的背景框、竖线、框线到相邻文字的空白与两段正文之间相同，编辑、阅读、导出 PDF 一致。
 
@@ -10,10 +14,10 @@
 
 ## 安装到另一台电脑
 
-1. 从 Releases 下载并解压 `trader-editor-tools-0.1.7-install.zip`，得到 `trader-editor-tools` 文件夹。本地中文安装包名为 `猛人obsidian编辑插件-0.1.7-安装包.zip`；内容相同。GitHub 附件使用不同的英文后缀，避免中文名被平台规范化后冲突。
+1. 从 Releases 下载并解压 `trader-editor-tools-0.1.8-install.zip`，得到 `trader-editor-tools` 文件夹。本地中文安装包名为 `Mengren Editor-0.1.8-安装包.zip`；内容相同。GitHub 附件使用不同的英文后缀，避免中文名被平台规范化后冲突。
 2. 将整个文件夹放入**笔记库**的 `.obsidian/plugins/`。不是 Obsidian 程序安装目录。例如：`你的笔记库/.obsidian/plugins/trader-editor-tools/main.js`。
-3. 打开 Obsidian → 设置 → 第三方插件，允许社区插件后，找到 **猛人obsidian编辑插件** 并启用。未出现时重启 Obsidian。
-4. 设置 → 猛人obsidian编辑插件调整参数。设置 → 快捷键，搜索 `猛人`，为需要的命令自行绑定按键。
+3. 打开 Obsidian → 设置 → 第三方插件，允许社区插件后，找到 **Mengren Editor** 并启用。未出现时重启 Obsidian。
+4. 设置 → Mengren Editor 调整参数。设置 → 快捷键，搜索 `Mengren`，为需要的命令自行绑定按键。
 5. 关闭旧 `wolai-layout.css` 和其他同类排版片段，避免叠加。也不建议同时启用多个拦截图片拖动的插件。
 
 必需文件为 `manifest.json`、`main.js`、`styles.css`；另外附带 `versions.json`、说明、许可证与验收记录。不要把源代码 ZIP 当作安装 ZIP；也不要套两层同名文件夹。

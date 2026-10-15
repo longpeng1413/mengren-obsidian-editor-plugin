@@ -6,7 +6,7 @@ const manifest = require('../manifest.json');
 // Include bundled-parser licenses even when main.js is downloaded on its own.
 const thirdPartyNotice = fs.readFileSync(path.join(root, 'THIRD-PARTY-NOTICES.md'), 'utf8').replace(/\r\n/g, '\n').trim();
 build({
-  entryPoints: [path.join(root, 'src/main.js')],
+  entryPoints: [path.join(root, 'src/main.mjs')],
   outfile: path.join(root, 'main.js'),
   bundle: true,
   platform: 'browser',

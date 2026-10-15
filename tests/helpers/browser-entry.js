@@ -1,16 +1,17 @@
-const {EditorState}=require('@codemirror/state');
-const {EditorView,Decoration,WidgetType}=require('@codemirror/view');
-const {StateField}=require('@codemirror/state');
-const {history,undo,redo,isolateHistory}=require('@codemirror/commands');
-const {marked}=require('marked');
-const {editorInfoField,MarkdownView,notices}=require('./obsidian-mock');
-const Trader=require('../../src/main');
-const {scanImages,isExcalidraw,formatNote}=require('../../src/markdown');
+// ESM imports, like src/: one instance of each CodeMirror package in the bundle.
+import {EditorState,StateField} from '@codemirror/state';
+import {EditorView,Decoration,WidgetType} from '@codemirror/view';
+import {history,undo,redo,isolateHistory} from '@codemirror/commands';
+import {marked} from 'marked';
+import {editorInfoField,MarkdownView,notices} from './obsidian-mock';
+import Trader from '../../src/main.mjs';
+import {scanImages,isExcalidraw,formatNote} from '../../src/markdown.mjs';
 
 for(const proto of [HTMLElement.prototype,DocumentFragment.prototype]) {
   proto.createEl=function(tag,options={}){const el=document.createElement(tag);if(options.text)el.textContent=options.text;if(options.cls)el.className=options.cls;this.appendChild(el);return el;};
   proto.createDiv=function(options={}){return this.createEl('div',options);};proto.createSpan=function(options={}){return this.createEl('span',options);};
   proto.empty=function(){this.replaceChildren();};
+  proto.setText=function(text){this.textContent=text;};
 }
 
 const esc=s=>s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');

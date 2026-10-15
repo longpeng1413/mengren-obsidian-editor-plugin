@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {classify,blankSpacing,paintedGaps,formatNote,scanImages,imageDimensions,resizedToken,sameDocumentPatch,splitPipes,dragSize,tableCellRange}=require('../src/markdown');
-const {stylePatch}=require('../src/text-style');
+const {classify,blankSpacing,paintedGaps,formatNote,scanImages,imageDimensions,resizedToken,sameDocumentPatch,splitPipes,dragSize,tableCellRange}=require('../src/markdown.mjs');
+const {stylePatch}=require('../src/text-style.mjs');
 
 test('one separator collapses; each additional saved plain blank stays visible',()=>{
   for(let count=1;count<=4;count++) {

@@ -1,7 +1,7 @@
-const { ViewPlugin, Decoration } = require('@codemirror/view');
-const { RangeSetBuilder, EditorState } = require('@codemirror/state');
-const { editorInfoField } = require('obsidian');
-const { classify, blankSpacing, paintedGaps } = require('./markdown');
+import { ViewPlugin, Decoration } from '@codemirror/view';
+import { RangeSetBuilder, EditorState } from '@codemirror/state';
+import { editorInfoField } from 'obsidian';
+import { classify, blankSpacing, paintedGaps } from './markdown.mjs';
 
 function layoutExtension(plugin) {
   const decorations = ViewPlugin.fromClass(class {
@@ -146,7 +146,7 @@ function refreshTabKnowledge(doc,settings) {
   for(const pre of doc.querySelectorAll('pre')) {
     if(pre.classList.contains('tet-tab-knowledge')) {
       const code=pre.querySelector('code');
-      if(code){code.textContent=code.textContent;code.classList.remove('tet-tab-code');}
+      if(code){code.replaceChildren(code.textContent);code.classList.remove('tet-tab-code');} // drop row spans, keep the native text
       pre.classList.remove('tet-tab-knowledge');
     }
     const ctx=tabContexts.get(pre);if(ctx&&settings)decorateTabKnowledge(pre,ctx,settings);
@@ -223,4 +223,4 @@ function applyLayout(doc, settings) {
   style.textContent = `:root { ${Object.entries(vars).map(([k,v])=>`${k}: ${v};`).join(' ')} }`;
 }
 
-module.exports = { layoutExtension, applyLayout, decorateTabKnowledge, refreshTabKnowledge, tabKnowledgeKeys, decorateExtraBlankLines, refreshExtraBlankLines };
+export { layoutExtension, applyLayout, decorateTabKnowledge, refreshTabKnowledge, tabKnowledgeKeys, decorateExtraBlankLines, refreshExtraBlankLines };

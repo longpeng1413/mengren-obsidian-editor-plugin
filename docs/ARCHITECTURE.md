@@ -4,12 +4,12 @@
 
 | Module | Responsibility |
 | --- | --- |
-| `src/main.js` | 插件生命周期、命令/菜单、模态预览、设置校验、备份 |
-| `src/markdown.js` | 纯函数：保守行分类、格式化插空行、图片扫描/尺寸 token、表格边界与安全写回 |
-| `src/layout.js` | CM6 行装饰、跨窗口 CSS 变量、输入行可见性、Tab 知识行 postprocessor |
-| `src/image-resize.js` | 源码定位、Pointer Events、覆盖层、尺寸提交、并发保护 |
-| `src/text-style.js` | Markdown 行内语义树、视觉属性读取/合并/规范化、快照与单事务提交 |
-| `src/text-style-view.js` | 从源码语义派生 LP HTML 组件的粗体/斜体/删除线显示，不写笔记 |
+| `src/main.mjs` | 插件生命周期、命令/菜单、模态预览、设置校验、备份 |
+| `src/markdown.mjs` | 纯函数：保守行分类、格式化插空行、图片扫描/尺寸 token、表格边界与安全写回 |
+| `src/layout.mjs` | CM6 行装饰、跨窗口 CSS 变量、输入行可见性、Tab 知识行 postprocessor |
+| `src/image-resize.mjs` | 源码定位、Pointer Events、覆盖层、尺寸提交、并发保护 |
+| `src/text-style.mjs` | Markdown 行内语义树、视觉属性读取/合并/规范化、快照与单事务提交 |
+| `src/text-style-view.mjs` | 从源码语义派生 LP HTML 组件的粗体/斜体/删除线显示，不写笔记 |
 | `styles.css` | Live Preview / 语义阅读块 / PDF 样式和非打印控件 |
 | `tests/` | 纯算法与真实 CM6/Chromium 夹具回归 |
 

@@ -16,7 +16,7 @@ class Plugin {
 class PluginSettingTab {constructor(app,plugin){this.app=app;this.plugin=plugin;this.containerEl=document.createElement('div');}}
 class MarkdownView {}
 class Modal {
-  constructor(app){this.app=app;this.modalEl=document.createElement('div');this.modalEl.className='modal';this.contentEl=document.createElement('div');this.modalEl.appendChild(this.contentEl);}
+  constructor(app){this.app=app;this.modalEl=document.createElement('div');this.modalEl.className='modal';this.titleEl=document.createElement('div');this.titleEl.className='modal-title';this.contentEl=document.createElement('div');this.modalEl.append(this.titleEl,this.contentEl);}
   open(){document.body.appendChild(this.modalEl);this.onOpen();}
   close(){this.onClose?.();this.modalEl.remove();}
 }
@@ -24,6 +24,7 @@ class Setting {
   constructor(el){this.settingEl=el.createDiv({cls:'setting-item'});this.info=this.settingEl.createDiv();this.controlEl=this.settingEl.createDiv();}
   setName(name){this.info.createDiv({text:name});return this;}
   setDesc(desc){this.info.createDiv({text:desc,cls:'tet-muted'});return this;}
+  setHeading(){this.settingEl.classList.add('setting-item-heading');return this;}
   setDisabled(disabled){this.settingEl.classList.toggle('is-disabled',disabled);for(const input of this.controlEl.querySelectorAll('input,button,select'))input.disabled=disabled;return this;}
   make(tag,type){const inputEl=document.createElement(tag);if(type)inputEl.type=type;this.controlEl.appendChild(inputEl);const c={inputEl};for(const method of ['setValue','setButtonText','setTooltip','setIcon','setPlaceholder','setLimits','setDynamicTooltip','setCta','setWarning','setDisabled']) c[method]=(...args)=>{
     if(method==='setValue'){inputEl.value=String(args[0]);if(type==='checkbox')inputEl.checked=args[0];}
@@ -37,7 +38,7 @@ class Setting {
   addButton(fn){fn(this.make('button'));return this;}
   addExtraButton(fn){fn(this.make('button'));return this;}
   addText(fn){fn(this.make('input','text'));return this;}
-  addColorPicker(fn){fn(this.make('input','color'));return this;}
+  addColorPicker(fn){const c=this.make('input','color');c.colorPickerEl=c.inputEl;delete c.inputEl;fn(c);return this;}
   addToggle(fn){fn(this.make('input','checkbox'));return this;}
   addSlider(fn){fn(this.make('input','range'));return this;}
 }

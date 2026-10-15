@@ -144,7 +144,7 @@ function classify(text, { splitLazyListLines = false } = {}) {
         kinds[i]='protected';opaque[i]=false;
         // A plain indented list paragraph is not an opaque code block. Keep
         // its source unchanged, but give it paragraph start/end metadata.
-        continuations[i]=indent<listContentIndent+4 && !interruptsParagraph(s.trimStart()) && !/^\s*[<>!\[]/.test(s);
+        continuations[i]=indent<listContentIndent+4 && !interruptsParagraph(s.trimStart()) && !/^\s*[<>![]/.test(s);
         continue;
       }
       if(indent>=4 && !(i>0 && kinds[i-1]==='prose' && lines[i-1].text.trim())) { kinds[i]='protected';opaque[i]=true;indentedCode[i]=true;list=false;continue; }
@@ -426,7 +426,7 @@ function resizedToken(token, width, height = null, options = {}) {
       // Obsidian supports only a single wiki display field. Preserve a custom
       // alt by converting ordinary images to documented Markdown alt|size.
       if (!options.resolvedPath || !options.notePath) throw new Error('无法解析带别名的图片路径；请使用图片尺寸命令检查');
-      const alt = parts.slice(1).join('|').replace(/\\?\|/g, token.inTable ? '\\|' : '|').replace(/(?<!\\)\]/g, '\\]');
+      const alt = parts.slice(1).join('|').replace(/\\?\|/g, token.inTable ? '\\|' : '|').replace(/\\?\]/g, m => m === ']' ? '\\]' : m); // no lookbehind: unsupported on older iOS
       const fragment = token.target.includes('#') ? '#'+token.target.split('#').slice(1).join('#') : '';
       return `![${alt}${pipe}${size}](<${relativeTarget(options.resolvedPath, options.notePath)}${fragment}>)`;
     }
@@ -434,7 +434,7 @@ function resizedToken(token, width, height = null, options = {}) {
   }
   let alt = token.alt.replace(/\\?\|\d+(?:x\d+)?$/, '');
   if (/^\d+(?:x\d+)?$/.test(alt)) alt='';
-  if (token.inTable) alt = alt.replace(/(?<!\\)\|/g, '\\|');
+  if (token.inTable) alt = alt.replace(/\\?\|/g, m => m === '|' ? '\\|' : m);
   const suffix = token.raw.slice(token.altEnd + 1);
   // For collapsed references make the implicit id explicit before editing alt.
   const fixedSuffix = token.type === 'reference' && suffix === '[]' ? `[${token.alt}]` : suffix;
@@ -466,4 +466,4 @@ function dragSize(initial, dx, dy, corner, free, maxWidth = 4096) {
   return { width: Math.round(w), height: Math.round(w/ratio) };
 }
 
-module.exports = { linesOf, splitPipes, classify, blankSpacing, paintedGaps, formatNote, scanImages, imageDimensions, resizedToken, sameDocumentPatch, dragSize, isExcalidraw, isImageTarget, relativeTarget, tableCellRange };
+export { linesOf, splitPipes, classify, blankSpacing, paintedGaps, formatNote, scanImages, imageDimensions, resizedToken, sameDocumentPatch, dragSize, isExcalidraw, isImageTarget, relativeTarget, tableCellRange };

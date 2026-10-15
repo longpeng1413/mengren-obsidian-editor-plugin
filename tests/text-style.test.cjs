@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {marked}=require('marked');
-const {stylePatch,semanticStyleRanges}=require('../src/text-style');
+const {stylePatch,semanticStyleRanges}=require('../src/text-style.mjs');
 const RED='#d64545',BLUE='#367bd6',YELLOW='#ffe1bd',GREEN='#d7f3df';
 function apply(state,kind,value) {
   const p=stylePatch(state.text,state.start,state.end,kind,value);

@@ -1,6 +1,6 @@
-const {ViewPlugin}=require('@codemirror/view');
-const {editorInfoField}=require('obsidian');
-const {semanticStyleRanges}=require('./text-style');
+import { ViewPlugin } from '@codemirror/view';
+import { editorInfoField } from 'obsidian';
+import { semanticStyleRanges } from './text-style.mjs';
 const classes=['tet-native-strong','tet-native-em','tet-native-del','tet-native-del-underline'];
 function textStyleExtension() {
   return ViewPlugin.fromClass(class {
@@ -23,7 +23,7 @@ function textStyleExtension() {
       const text=view.state.doc.toString();
       if(text!==this.source){this.source=text;this.ranges=semanticStyleRanges(text);}
       return [...view.dom.querySelectorAll('.cm-html-embed span[data-mengren-style="1"]')].map(node=>{
-        let position;try{position=view.posAtDOM(node.closest('.cm-html-embed'));}catch{}
+        let position;try{position=view.posAtDOM(node.closest('.cm-html-embed'));}catch{/* widget left the editor while measuring */}
         const flags=!sourceMode&&Number.isInteger(position)?this.ranges.find(r=>position>=r.from&&position<r.to):null;
         return {node,flags};
       });
@@ -31,4 +31,4 @@ function textStyleExtension() {
     destroy() {this.alive=false;this.observer.disconnect();for(const node of this.view.dom.querySelectorAll('[data-mengren-style]'))for(const cls of classes)node.classList.remove(cls);}
   });
 }
-module.exports={textStyleExtension};
+export { textStyleExtension };

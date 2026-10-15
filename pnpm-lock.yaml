@@ -7,22 +7,23 @@ settings:
 importers:
 
   .:
-    devDependencies:
-      '@codemirror/commands':
-        specifier: 6.10.1
-        version: 6.10.1
+    dependencies:
       '@codemirror/state':
         specifier: 6.5.2
         version: 6.5.2
       '@codemirror/view':
         specifier: 6.38.6
         version: 6.38.6
-      esbuild:
-        specifier: 0.25.11
-        version: 0.25.11
       marked:
         specifier: 15.0.12
         version: 15.0.12
+    devDependencies:
+      '@codemirror/commands':
+        specifier: 6.10.1
+        version: 6.10.1
+      esbuild:
+        specifier: 0.25.11
+        version: 0.25.11
       playwright:
         specifier: 1.56.1
         version: 1.56.1

@@ -9,7 +9,9 @@ const {cases:styleCases}=require('../scripts/style-fixture.cjs');
 const root=path.resolve(__dirname,'..'),work=path.join(root,'.test-artifacts');
 before(async()=>{
   fs.mkdirSync(work,{recursive:true});
-  const bundle=await build({entryPoints:[path.join(__dirname,'helpers/browser-entry.js')],bundle:true,write:false,platform:'browser',format:'iife',alias:{obsidian:path.join(__dirname,'helpers/obsidian-mock.js')}});
+  const bundle=await build({entryPoints:[path.join(__dirname,'helpers/browser-entry.js')],bundle:true,write:false,platform:'browser',format:'iife',alias:{obsidian:path.join(__dirname,'helpers/obsidian-mock.js'),
+    // CodeMirror ships ESM and CJS builds; pin one file so import and require share instances.
+    '@codemirror/state':path.join(root,'node_modules/@codemirror/state/dist/index.js'),'@codemirror/view':path.join(root,'node_modules/@codemirror/view/dist/index.js')}});
   browser=await chromium.launch({executablePath:process.env.TET_BROWSER || 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',headless:true});
   page=await browser.newPage({viewport:{width:1200,height:900}});
   await page.route('https://fixture.invalid/**',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="#d8eaff"/><text x="20" y="50" font-size="20">Trader Chart</text></svg>'}));
@@ -190,6 +192,8 @@ test('settings render without unsupported menu APIs; variables carry into print'
   await setup('# 交易计划\n\n第一段自动折行时使用紧凑行距。\n\n第二段。\n\n- 入场\n\n- 出场\n\n| 场景 | 图片 |\n| --- | --- |\n| 风险 | ![[图.png\\|200]] |','reading');
   await page.evaluate(()=>{fixture.plugin.tab.display();document.body.appendChild(fixture.plugin.tab.containerEl);});
   assert.equal(await page.getByRole('slider').count(),10);
+  // Every palette slot renders both pickers (Obsidian's ColorComponent exposes colorPickerEl).
+  assert.deepEqual(await page.locator('input[type=color]').evaluateAll(ns=>ns.map(n=>n.getAttribute('aria-label'))),Array(6).fill(['文字颜色','背景色']).flat());
   await page.evaluate(()=>fixture.plugin.tab.containerEl.remove());
   const before=await page.locator('p').first().evaluate(el=>({line:getComputedStyle(el).lineHeight,gap:getComputedStyle(el).marginBottom,pad:getComputedStyle(el).paddingTop,bottom:getComputedStyle(el).paddingBottom}));
   await page.emulateMedia({media:'print'});
