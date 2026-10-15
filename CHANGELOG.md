@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.9 - 2026-10-15
+
+- 根据 Obsidian 社区目录首次自动审核结果：README 改为中英双语（英文在前、中文在后，互相跳转），满足“必须有英文介绍”的要求；英文部分按功能完整重写。单独的 README.en.md 合并后删除。
+- 发布流程为 `main.js`、`manifest.json`、`styles.css` 签发 GitHub 构建来源证明（artifact attestation），可用 `gh attestation verify` 核验文件确由本仓库源码构建。
+- 文档中的旧仓库地址统一为 mengren-obsidian-editor-plugin。插件代码与 0.1.8 相同。
+
 ## 0.1.8 - 2026-10-15
 
 - 为提交 Obsidian 社区目录按官方规范整理：显示名改为 **Mengren Editor**（名称和描述不得含 “Obsidian” / “plugin”），新增英文描述；内部 ID `trader-editor-tools` 不变，设置、快捷键、备份保留。

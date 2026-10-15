@@ -9,8 +9,8 @@
 - 开发时使用独立空白测试库，不在真实工作库里批量格式化。
 
 ```sh
-git clone https://github.com/longpeng1413/trader-editor-tools.git
-cd trader-editor-tools
+git clone https://github.com/longpeng1413/mengren-obsidian-editor-plugin.git
+cd mengren-obsidian-editor-plugin
 pnpm install --frozen-lockfile
 pnpm build
 pnpm test:core

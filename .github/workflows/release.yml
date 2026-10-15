@@ -4,6 +4,9 @@ on:
     tags: ['[0-9]*']
 permissions:
   contents: write
+  # Signed build provenance for the files Obsidian downloads.
+  id-token: write
+  attestations: write
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -25,6 +28,13 @@ jobs:
       - name: Package portable source and installer
         shell: pwsh
         run: ./scripts/package.ps1 -OutputDirectory ./dist
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
       - name: Publish release assets
         env:
           GH_TOKEN: ${{ github.token }}

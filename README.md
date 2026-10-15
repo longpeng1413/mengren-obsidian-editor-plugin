@@ -1,10 +1,108 @@
-# Mengren Editor（猛人编辑器）
+# Mengren Editor
 
-> 原名「猛人obsidian编辑插件」。0.1.8 起为符合 Obsidian 社区目录规则（名称不能含 “Obsidian”），显示名改为 **Mengren Editor**；内部 ID `trader-editor-tools` 不变，已有设置、快捷键和备份不受影响。
+**English** · [中文说明](#中文说明)
 
-版本 **0.1.8**，MIT 开源。完整可安装插件，不需要安装 Node.js，不需要编译。优先支持 Windows / Obsidian 1.13.x / Live Preview；手机可安装，但尚未真机验收。
+Mengren Editor keeps Markdown notes compact and evenly spaced, resizes images by dragging their corners, and adds text color, highlight and underline, while leaving Obsidian's native Markdown editing untouched. It was formerly published as 猛人obsidian编辑插件 and was renamed in 0.1.8 to follow the Community directory rules; the internal ID `trader-editor-tools` is unchanged, so existing settings, hotkeys and backups carry over. The interface is primarily Chinese. MIT licensed, maintained by [longpeng1413](https://github.com/longpeng1413).
 
-[English](README.en.md) · [下载发布版](https://github.com/longpeng1413/trader-editor-tools/releases/latest) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md) · [架构](docs/ARCHITECTURE.md) · [测试记录](TESTING.md) · [问题反馈](https://github.com/longpeng1413/trader-editor-tools/issues)
+[Releases](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/releases/latest) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Architecture](docs/ARCHITECTURE.md) · [Testing](TESTING.md) · [Issues](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/issues)
+
+## Features
+
+### Consistent block spacing
+
+- Body text uses line-height 1.62. Paragraphs and top-level list items get 0.28em of padding on each side, so every pair of neighbouring blocks is separated by the same gap. Theme paragraph and list margins are not stacked on top.
+- Quotes, nested lists, indented list paragraphs and standalone indented code join the same spacing model. Automatic line wrapping inside one paragraph stays at the body line-height.
+- Headings keep symmetric padding of their own: H1 0.95em, H2 0.82em, H3 0.70em and H4 to H6 0.58em on each side.
+- Painted blocks, meaning fenced code backgrounds, quote bars, Callout boxes, table borders and standalone images, keep half of the visible prose gap outside their paint (block padding plus half the line leading, about 0.59em). Paint to text and paint to paint therefore look exactly like text to text, about 18.9px at a 16px font size.
+- Live Preview, Reading view and PDF export follow the same rule. Only unindented code and quotes count as painted blocks; indented ones inside lists keep list spacing.
+
+### Tab knowledge rows
+
+Standalone indented blocks whose non-blank lines all start with a Tab can be shown as knowledge rows: each physical line gets the same padding as a list item, and wrapping stays compact. This is an optional display enhancement, enabled by default. Standard Markdown still treats such blocks as code, so turn it off if your Tabs mean program code. Fenced code and space-indented code are never changed.
+
+### Blank lines
+
+One blank line between blocks is a compact paragraph separator. Every additional plain blank line keeps one line of visible space in Live Preview, Reading view and print, so deliberate breathing room survives. Blank rows inside code, YAML, HTML, quotes and Callouts are left alone, and the trailing caret position is not counted.
+
+### Formatting command
+
+The optional formatting command inserts the standard blank lines that Markdown paragraphs, headings, images, lists and tables need. It always shows a before and after preview, can save a local backup first, and applies as a single undo step. Notes are never reformatted automatically. Quotes, Callouts, nested lists, YAML, code and uncertain inline constructs are protected.
+
+### Native editing
+
+The plugin registers no keyboard handlers. Enter, Shift+Enter, Tab and Backspace, as well as list, quote and indentation continuation, are handled entirely by Obsidian. A blank line that holds the caret stays visible and editable, and collapses again when you move away. Source mode stays native.
+
+### Image resizing
+
+Click an image and drag any corner to resize it proportionally; hold Alt for independent width and height, and press Esc to cancel. The size is written once, on release, in Obsidian's native embed or alt syntax. Images inside Markdown tables, with escaped pipes and checked column counts, and Excalidraw drawings are supported. A command also lets you type an exact width and height.
+
+### Text color, highlight and underline
+
+Apply text colors, background highlights and underlines from the editor context menu, the command palette or hotkeys you assign. Each property can be added, changed or cleared on its own; they merge into a single readable HTML span while bold, italic, strikethrough and links keep their native Markdown syntax. Six palette slots are customizable. Inline code, wiki links, escapes and link targets are protected.
+
+### Reading view and PDF
+
+Reading view and PDF export use the same spacing and styles as Live Preview. Resize handles never appear in print, and colors and highlights are preserved.
+
+## Install
+
+**From Obsidian:** open Settings, then Community plugins, select Browse, search for "Mengren Editor", then install and enable it.
+
+**Manually:** download `trader-editor-tools-0.1.9-install.zip` from [Releases](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/releases/latest) and extract the `trader-editor-tools` folder into your vault, not into the Obsidian program directory:
+
+```text
+YOUR-VAULT/.obsidian/plugins/trader-editor-tools/
+  manifest.json
+  main.js
+  styles.css
+```
+
+Then enable **Mengren Editor** under Settings, Community plugins. To upgrade manually, disable the plugin, replace the three runtime files, keep `data.json` and `backups/`, and enable it again. Turn off other layout CSS snippets that change paragraph spacing so the two do not stack. Keep Excalidraw installed if you use drawings; this plugin does not replace it.
+
+## Privacy and safety
+
+- No network requests, telemetry, accounts, payments or ads.
+- The plugin only reads and writes notes inside your vault, through the Obsidian API, and only after an explicit action: a confirmed formatting preview, a finished image drag, or a style command.
+- Before a formatting run or a Reading view image write, it can save the original note in the plugin's own `backups/` folder inside your vault configuration folder. Backups stay local and are never deleted automatically.
+- Stale documents, concurrent edits and ambiguous image matches are rejected instead of guessed.
+
+## Compatibility and limits
+
+Tested on Windows with Obsidian 1.13 and 1.14, the default theme and Excalidraw. Other themes, complex HTML and third-party renderers may differ. The plugin can be installed on Android and iOS, but mobile touch and keyboard behavior have not been verified on real devices. The formatting command is deliberately conservative and is not a complete Markdown reflow engine; extra blank lines are not reproduced in PDF export, because the export carries no source positions.
+
+## Mobile
+
+Select text, open the command palette and run a color, highlight or underline command; these commands can also be added to the mobile toolbar. When syncing, include the hidden `.obsidian` folder so the plugin files and, optionally, `data.json` are copied. Excalidraw must be enabled on each device that shows drawings.
+
+## Develop
+
+Node.js 22 or later and pnpm 9 are required:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm build
+pnpm test
+```
+
+Browser tests default to Windows Edge; set `TET_BROWSER` to another Chromium executable if needed. The fixtures use real CodeMirror 6 with a mocked Obsidian API. See [CONTRIBUTING.md](CONTRIBUTING.md) and [docs/RELEASING.md](docs/RELEASING.md).
+
+## Reporting issues
+
+Please report bugs with anonymized minimal Markdown, your Obsidian and plugin versions, and the editor mode. Do not upload your vault, backups, account details or private attachments.
+
+---
+
+# 中文说明
+
+[English](#mengren-editor) · **中文**
+
+> **Mengren Editor（猛人编辑器）**，原名「猛人obsidian编辑插件」。0.1.8 起为符合 Obsidian 社区目录规则（名称不能含 “Obsidian”），显示名改为 Mengren Editor；内部 ID `trader-editor-tools` 不变，已有设置、快捷键和备份不受影响。
+
+版本 **0.1.9**，MIT 开源。完整可安装插件，不需要安装 Node.js，不需要编译。优先支持 Windows / Obsidian 1.13–1.14 / Live Preview；手机可安装，但尚未真机验收。
+
+[下载发布版](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/releases/latest) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md) · [架构](docs/ARCHITECTURE.md) · [测试记录](TESTING.md) · [问题反馈](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/issues)
+
+0.1.9 README 改为中英双语（Obsidian 社区目录要求有英文介绍），发布附件附带 GitHub 构建来源证明。
 
 0.1.8 按 Obsidian 官方社区目录规范整理：英文名称与描述、设置页标题写法、手机兼容的正则写法，官方检查工具零错误。
 
@@ -12,9 +110,13 @@
 
 0.1.6 重构 **独立叠加文字样式**：颜色、高亮、下划线统一合并到一个视觉 span，分别增加、修改或清除；保留 Markdown 粗体、斜体、删除线和链接语义，并修复 Live Preview 的 HTML 组件不显示外层粗体的问题。继续保留原生回车和连续空行留白；升级不会自动修改旧笔记。
 
-## 安装到另一台电脑
+## 安装
 
-1. 从 Releases 下载并解压 `trader-editor-tools-0.1.8-install.zip`，得到 `trader-editor-tools` 文件夹。本地中文安装包名为 `Mengren Editor-0.1.8-安装包.zip`；内容相同。GitHub 附件使用不同的英文后缀，避免中文名被平台规范化后冲突。
+**从插件市场安装：** 打开 Obsidian → 设置 → 第三方插件 → 浏览，搜索 “Mengren Editor”，安装并启用。以后在“检查更新”里即可升级。
+
+**手动安装（备用）：**
+
+1. 从 Releases 下载并解压 `trader-editor-tools-0.1.9-install.zip`，得到 `trader-editor-tools` 文件夹。本地中文安装包名为 `Mengren Editor-0.1.9-安装包.zip`；内容相同。GitHub 附件使用不同的英文后缀，避免中文名被平台规范化后冲突。
 2. 将整个文件夹放入**笔记库**的 `.obsidian/plugins/`。不是 Obsidian 程序安装目录。例如：`你的笔记库/.obsidian/plugins/trader-editor-tools/main.js`。
 3. 打开 Obsidian → 设置 → 第三方插件，允许社区插件后，找到 **Mengren Editor** 并启用。未出现时重启 Obsidian。
 4. 设置 → Mengren Editor 调整参数。设置 → 快捷键，搜索 `Mengren`，为需要的命令自行绑定按键。

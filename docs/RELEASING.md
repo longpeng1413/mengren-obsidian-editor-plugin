@@ -22,7 +22,7 @@ git push origin 0.1.1
 
 `release.yml` 验证 tag/manifest/package 版本一致，重新构建和运行纯算法测试，用打包脚本生成 ZIP，通过仓库临时 `GITHUB_TOKEN` 发布 Release。Token 不写入代码或日志，不需维护者存长期密钥。
 
-Release assets:
+Release assets（`main.js`、`manifest.json`、`styles.css` 附 GitHub 构建来源证明，可用 `gh attestation verify main.js --repo longpeng1413/mengren-obsidian-editor-plugin` 核验）:
 
 - `manifest.json`, `main.js`, `styles.css`, `versions.json`
 - `trader-editor-tools-VERSION-install.zip`

@@ -20,14 +20,14 @@ New-Item -ItemType Directory -Path $stageRoot | Out-Null
 $installRoot = Join-Path $stageRoot 'installer'
 $installFolder = Join-Path $installRoot 'trader-editor-tools'
 New-Item -ItemType Directory -Path $installFolder | Out-Null
-foreach ($name in @('manifest.json','main.js','styles.css','versions.json','README.md','README.en.md','TESTING.md','CHANGELOG.md','LICENSE','THIRD-PARTY-NOTICES.md')) {
+foreach ($name in @('manifest.json','main.js','styles.css','versions.json','README.md','TESTING.md','CHANGELOG.md','LICENSE','THIRD-PARTY-NOTICES.md')) {
   Copy-Item -LiteralPath (Join-Path $projectRoot $name) -Destination $installFolder
 }
 $sourceRoot = Join-Path $stageRoot 'source'
 $sourceFolder = Join-Path $sourceRoot 'trader-editor-tools-source'
 New-Item -ItemType Directory -Path $sourceFolder | Out-Null
 # Explicit public allowlist: never package vault data, backups, dependencies or Git credentials.
-foreach ($name in @('src','tests','scripts','examples','docs','.github','.gitignore','.gitattributes','manifest.json','main.js','styles.css','versions.json','README.md','README.en.md','TESTING.md','CHANGELOG.md','CONTRIBUTING.md','SECURITY.md','LICENSE','THIRD-PARTY-NOTICES.md','package.json','pnpm-lock.yaml')) {
+foreach ($name in @('src','tests','scripts','examples','docs','.github','.gitignore','.gitattributes','manifest.json','main.js','styles.css','versions.json','README.md','TESTING.md','CHANGELOG.md','CONTRIBUTING.md','SECURITY.md','LICENSE','THIRD-PARTY-NOTICES.md','package.json','pnpm-lock.yaml')) {
   Copy-Item -LiteralPath (Join-Path $projectRoot $name) -Destination $sourceFolder -Recurse -Force
 }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
