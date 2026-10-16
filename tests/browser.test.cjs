@@ -256,21 +256,23 @@ test('quote, prose, list and standalone indented code have equal external block 
 // Visible gap between two prose paragraphs at 16px, line-height 1.62: two block
 // paddings (4.48px) plus two half-leadings (4.96px) around ~1em CJK glyphs.
 const VISIBLE_GAP=18.88;
-test('Live Preview keeps one visible prose gap between text and code, quote, Callout and table paint',async()=>{
+test('Live Preview keeps one visible prose gap between text and code, quote, Callout, Tab row, table, rule and drawing paint',async()=>{
   const table='| 层次 | 职责 |\n| --- | --- |\n| 甲 | 职责说明 |';
-  const input=['正文一','正文二\n```text\n贴着的代码\n```\n正文三','> 引用',table,'```text\n代码\n```','- 列表','> [!note] 提示\n> 内容','\t知识行',table,table,'结尾'].join('\n\n');
+  const input=['正文一','正文二\n```text\n贴着的代码\n```\n正文三','> 引用',table,'```text\n代码\n```','- 列表','> [!note] 提示\n> 内容','\t知识行',table,table,'---','![[绘图块.md]]','结尾'].join('\n\n');
   await setup(input);
   const measure=()=>page.evaluate(()=>{
-    // Painted: code background rows, quote rows (bar covers their padding), table borders.
-    // Text: glyph box = content box minus half the leading on each side.
+    // Painted: code background rows, quote rows (bar covers their padding),
+    // Tab knowledge rows (one background per run), table borders, the rule
+    // line and a block drawing. Text: glyph box = content box minus half the
+    // leading on each side.
     const boxes=[];
     for(const el of document.querySelector('.cm-content').children) {
       const r=el.getBoundingClientRect(),c=getComputedStyle(el);
       if(r.height<0.5||el.classList.contains('tet-gap'))continue;
-      const table=el.querySelector('table');
-      const kind=table?'table':el.matches('.HyperMD-codeblock')?'code':el.matches('.HyperMD-quote')?'quote':'text';
+      const inner=el.querySelector('table')||el.querySelector(':scope.hr > hr')||(el.matches('.internal-embed')&&el.querySelector('svg'));
+      const kind=inner?inner.tagName.toLowerCase():el.matches('.HyperMD-codeblock')?'code':el.matches('.HyperMD-quote')?'quote':el.matches('.tet-tab-knowledge-line')?'tab':'text';
       let top=r.top,bottom=r.bottom;
-      if(table){const t=table.getBoundingClientRect();top=t.top;bottom=t.bottom;}
+      if(inner){const t=inner.getBoundingClientRect();top=t.top;bottom=t.bottom;}
       else if(kind!=='text'){top+=parseFloat(c.borderTopWidth);bottom-=parseFloat(c.borderBottomWidth);}
       else {
         const half=(parseFloat(c.lineHeight)-parseFloat(c.fontSize))/2;
@@ -279,13 +281,14 @@ test('Live Preview keeps one visible prose gap between text and code, quote, Cal
       }
       const last=boxes.at(-1);
       // Consecutive rows of one code block or quote form one painted box.
-      if(last && kind===last.kind && kind!=='text' && kind!=='table' && Math.abs(top-last.bottom)<0.5) {last.bottom=bottom;continue;}
+      if(last && kind===last.kind && ['code','quote','tab'].includes(kind) && Math.abs(top-last.bottom)<0.5) {last.bottom=bottom;continue;}
       boxes.push({kind,top,bottom,text:el.textContent.slice(0,6)});
     }
     return boxes.slice(1).map((b,i)=>({pair:boxes[i].kind+'→'+b.kind,from:boxes[i].text,gap:b.top-boxes[i].bottom}));
   });
   const gaps=await measure();
-  assert.equal(gaps.length,12,JSON.stringify(gaps));
+  assert.equal(gaps.length,14,JSON.stringify(gaps));
+  assert.deepEqual(gaps.slice(-6).map(g=>g.pair),['quote→tab','tab→table','table→table','table→hr','hr→svg','svg→text']);
   for(const g of gaps) assert.ok(Math.abs(g.gap-VISIBLE_GAP)<0.15,JSON.stringify(gaps));
   assert.deepEqual(await page.locator('.tet-paint-below,.tet-paint-above').count(),2);
   // The restored half is display only; a caret on that separator still gets a full input row.
@@ -295,18 +298,18 @@ test('Live Preview keeps one visible prose gap between text and code, quote, Cal
   assert.equal(await page.evaluate(()=>fixture.text()),input);
 });
 
-test('Reading and PDF print wrappers keep the same visible gap around code, quote, Callout, table and image paint',async()=>{
+test('Reading and PDF print wrappers keep the same visible gap around code, quote, Callout, Tab row, table, image and rule paint',async()=>{
   await setup('','reading');
   const table='<table><thead><tr><th>层次</th><th>职责</th></tr></thead><tbody><tr><td>甲</td><td>职责说明</td></tr></tbody></table>';
   const image='<p><span class="internal-embed image-embed" src="图.png"><img src="https://fixture.invalid/图.png" width="200"></span></p>';
   const blocks=[['p','<p>正文一</p>'],['p','<p>正文二</p>'],['pre','<pre><code>代码</code></pre>'],['blockquote','<blockquote><p>引用</p></blockquote>'],['table',table],
     ['ul','<ul><li>列表</li></ul>'],['p',image],['div','<div class="callout" style="margin:16px 0;padding:12px">提示</div>'],['table',table],
-    ['pre','<pre class="tet-tab-knowledge"><code class="tet-tab-code"><span class="tet-tab-row">知识行</span></code></pre>'],['p',image],['pre','<pre><code>代码</code></pre>'],['p','<p>结尾</p>']];
+    ['pre','<pre class="tet-tab-knowledge"><code class="tet-tab-code"><span class="tet-tab-row">知识行</span></code></pre>'],['p',image],['hr','<hr>'],['pre','<pre><code>代码</code></pre>'],['hr','<hr>'],['p','<p>结尾</p>']];
   const measure=()=>page.evaluate(()=>{
     const out={};
     for(const root of document.querySelectorAll('.markdown-preview-sizer,.print > .markdown-preview-view')) {
       const boxes=[...root.children].map(section=>{
-        const paint=section.querySelector('table,img,pre:not(.tet-tab-knowledge),blockquote,.callout');
+        const paint=section.querySelector('table,img,pre,blockquote,.callout,hr');
         if(paint){const r=paint.getBoundingClientRect();return {top:r.top,bottom:r.bottom};}
         const text=[...section.querySelectorAll('p,li,.tet-tab-row')],first=text[0],lastEl=text.at(-1);
         const edge=(el,side)=>{const r=el.getBoundingClientRect(),c=getComputedStyle(el),half=(parseFloat(c.lineHeight)-parseFloat(c.fontSize))/2;
@@ -510,7 +513,10 @@ test('physical Tab knowledge rows match list spacing in live, reading and print;
     for(const box of boxes){assert.deepEqual(box.padding,['4.48px','4.48px']);assert.equal(box.line,'25.92px');}
     assert.ok(Math.abs(boxes[1].top-boxes[0].bottom-8.96)<.1);
     const allBoxes=await page.locator(mode==='live'?'.tet-block-start':'.markdown-preview-view > p,.tet-tab-row,li').evaluateAll(ns=>ns.map(n=>{const c=getComputedStyle(n),r=n.getBoundingClientRect();return {top:r.top+parseFloat(c.paddingTop),bottom:r.bottom-parseFloat(c.paddingBottom)};}));
-    for(let i=1;i<allBoxes.length;i++)assert.ok(Math.abs(allBoxes[i].top-allBoxes[i-1].bottom-8.96)<.1,mode+' Tab/prose/list boundary '+i);
+    // In LP the Tab run is paint with a half gap outside it; this fixture's
+    // Reading has no section wrappers, whose matching padding the painted-gap
+    // test checks.
+    for(let i=1;i<allBoxes.length;i++)assert.ok(Math.abs(allBoxes[i].top-allBoxes[i-1].bottom-8.96-(mode==='live'&&(i===1||i===3)?9.44:0))<.1,mode+' Tab/prose/list boundary '+i);
     if(mode==='reading') {
       const original=await page.locator('pre code').textContent();assert.equal(original,'Tab 第一行。\nTab 第二行。\n');
       await page.emulateMedia({media:'print'});assert.equal(await page.locator('.tet-tab-row').first().evaluate(n=>getComputedStyle(n).paddingTop),'4.48px');await page.emulateMedia({media:'screen'});

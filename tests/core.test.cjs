@@ -45,6 +45,14 @@ test('painted code, quote and Callout edges restore half the visible prose gap o
   assert.deepEqual(gaps('```\n代码\n```\n'+table),{blanks:[],above:[],below:[]});
   // Indented quotes and code inside lists keep list spacing, as in Reading/PDF.
   assert.deepEqual(gaps('- 列表\n  ```\n  代码\n  ```\n\n  > 引用\n\n正文'),{blanks:[],above:[],below:[]});
+  // Tab knowledge runs given by the layout are painted (blank rows inside a run
+  // belong to it); horizontal rules carry their own padding like images.
+  const tab=(text,rows)=>{const g=paintedGaps({...classify(text),tabRows:new Set(rows)});return {blanks:[...g.blanks],above:[...g.above],below:[...g.below]};};
+  assert.deepEqual(tab('正文\n\n\t知识一\n\n\t知识二\n\n正文',[2,3,4]),{blanks:[[1,1],[5,1]],above:[],below:[]});
+  assert.deepEqual(tab('## 标题\n\n\t知识\n\n```\n代码\n```',[2]),{blanks:[[1,1],[3,2]],above:[],below:[]});
+  assert.deepEqual(tab('\t知识\n## 标题',[0]),{blanks:[],above:[1],below:[]});
+  assert.deepEqual(gaps('![[图.png]]\n\n---\n\n正文'),{blanks:[],above:[],below:[]});
+  assert.deepEqual(gaps('```\n代码\n```\n***\n> 引用\n\n---'),{blanks:[[5,1]],above:[],below:[]});
   // A trailing caret position is not a separator; source text is never rewritten.
   assert.deepEqual(gaps('```\n代码\n```\n').blanks,[]);
   assert.equal(formatNote(mixed).text,mixed);

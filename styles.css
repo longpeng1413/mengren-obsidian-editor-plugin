@@ -95,10 +95,12 @@ body.tet-enabled :is(.markdown-preview-view, .markdown-rendered) p:has(> :is(img
 body.tet-enabled :is(.markdown-preview-view, .markdown-rendered) table { margin-block: 0 !important; }
 /* Reading wraps each top-level block in an .el-* section; PDF export wraps each
    one in a plain div under .print > .markdown-preview-view. Match the wrapper by
-   what it holds, so Reading and PDF share one rule. Tab knowledge rows are text. */
-body.tet-enabled :is(.markdown-preview-sizer, .print > .markdown-preview-view) > div:has(> :is(pre:not(.tet-tab-knowledge), blockquote, .callout)) {
+   what it holds, so Reading and PDF share one rule. A horizontal rule is paint
+   too: its line sits a half gap from each neighbour. */
+body.tet-enabled :is(.markdown-preview-sizer, .print > .markdown-preview-view) > div:has(> :is(pre, blockquote, .callout, hr)) {
   padding-block: var(--tet-paint-gap) !important;
 }
+body.tet-enabled :is(.markdown-preview-sizer, .print > .markdown-preview-view) > div > hr { margin-block: 0 !important; }
 body.tet-enabled :is(.markdown-preview-sizer, .print > .markdown-preview-view) > div:has(> table) {
   padding-block: var(--tet-table-padding, var(--tet-paint-gap)) !important;
 }
@@ -147,7 +149,29 @@ body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-h1 {
 body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-h2 { padding-block: var(--tet-h2) !important; }
 body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-h3 { padding-block: var(--tet-h3) !important; }
 body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-image-line { margin-block: 0 !important; padding-block: var(--tet-image-padding, var(--tet-paint-gap)) !important; }
+/* Embeds such as Excalidraw drawings render as block widgets beside the source
+   lines, not inside an image line. */
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-content > .internal-embed.image-embed { padding-block: var(--tet-image-padding, var(--tet-paint-gap)) !important; }
 body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-table-widget { margin-block: 0 !important; padding-block: var(--tet-table-padding, var(--tet-paint-gap)) !important; }
+/* The rendered rule: its line plus a half gap above and below, as in Reading. */
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.hr { line-height: 0 !important; padding-block: var(--tet-paint-gap) !important; }
+/* Tab knowledge rows: one code-coloured box per run, text inset like Reading's
+   code box, instead of a highlight behind each wrapped text fragment. */
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line:is(.tet-tab-knowledge-line,.tet-tab-gap) {
+  background-color: var(--code-background);
+  padding-inline: var(--size-4-4) !important;
+  tab-size: 0;
+}
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-tab-first { border-start-start-radius: var(--code-radius); border-start-end-radius: var(--code-radius); }
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-tab-last { border-end-start-radius: var(--code-radius); border-end-end-radius: var(--code-radius); }
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-tab-knowledge-line .cm-indent { min-width: 0 !important; }
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-tab-knowledge-line .cm-indent::before { display: none; }
+body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-tab-knowledge-line .cm-inline-code {
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0;
+  font-size: inherit !important;
+}
 /* Fenced code, quotes and Callouts paint over their own half gap: the separator
    beside them shows one half per painted side, and an unpainted line touching
    the paint directly adds the same space to its padding (borders would snap to

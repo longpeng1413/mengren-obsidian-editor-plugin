@@ -13,12 +13,12 @@ Mengren Editor keeps Markdown notes compact and evenly spaced, resizes images by
 - Body text uses line-height 1.62. Paragraphs and top-level list items get 0.28em of padding on each side, so every pair of neighbouring blocks is separated by the same gap. Theme paragraph and list margins are not stacked on top.
 - Quotes, nested lists, indented list paragraphs and standalone indented code join the same spacing model. Automatic line wrapping inside one paragraph stays at the body line-height.
 - Headings keep symmetric padding of their own: H1 0.95em, H2 0.82em, H3 0.70em and H4 to H6 0.58em on each side.
-- Painted blocks, meaning fenced code backgrounds, quote bars, Callout boxes, table borders and standalone images, keep half of the visible prose gap outside their paint (block padding plus half the line leading, about 0.59em). Paint to text and paint to paint therefore look exactly like text to text, about 18.9px at a 16px font size.
+- Painted blocks, meaning fenced code backgrounds, quote bars, Callout boxes, Tab knowledge row backgrounds, table borders, horizontal rules and standalone images or drawings, keep half of the visible prose gap outside their paint (block padding plus half the line leading, about 0.59em). Paint to text and paint to paint therefore look exactly like text to text, about 18.9px at a 16px font size.
 - Live Preview, Reading view and PDF export follow the same rule. Only unindented code and quotes count as painted blocks; indented ones inside lists keep list spacing.
 
 ### Tab knowledge rows
 
-Standalone indented blocks whose non-blank lines all start with a Tab can be shown as knowledge rows: each physical line gets the same padding as a list item, and wrapping stays compact. This is an optional display enhancement, enabled by default. Standard Markdown still treats such blocks as code, so turn it off if your Tabs mean program code. Fenced code and space-indented code are never changed.
+Standalone indented blocks whose non-blank lines all start with a Tab can be shown as knowledge rows: each physical line gets the same padding as a list item, wrapping stays compact, and the whole run sits on one code-coloured box that looks the same in Live Preview and Reading view. This is an optional display enhancement, enabled by default. Standard Markdown still treats such blocks as code, so turn it off if your Tabs mean program code. Fenced code and space-indented code are never changed.
 
 ### Blank lines
 
@@ -98,9 +98,11 @@ Please report bugs with anonymized minimal Markdown, your Obsidian and plugin ve
 
 > **Mengren Editor（猛人编辑器）**，原名「猛人obsidian编辑插件」。0.1.8 起为符合 Obsidian 社区目录规则（名称不能含 “Obsidian”），显示名改为 Mengren Editor；内部 ID `trader-editor-tools` 不变，已有设置、快捷键和备份不受影响。
 
-版本 **0.1.9**，MIT 开源。完整可安装插件，不需要安装 Node.js，不需要编译。优先支持 Windows / Obsidian 1.13–1.14 / Live Preview；手机可安装，但尚未真机验收。
+版本 **0.1.10**，MIT 开源。完整可安装插件，不需要安装 Node.js，不需要编译。优先支持 Windows / Obsidian 1.13–1.14 / Live Preview；手机可安装，但尚未真机验收。
 
 [下载发布版](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/releases/latest) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md) · [架构](docs/ARCHITECTURE.md) · [测试记录](TESTING.md) · [问题反馈](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/issues)
+
+0.1.10 **Tab 知识行、分割线、Excalidraw 绘图** 也按涂色块留出外侧空白：编辑模式的 Tab 行改为与阅读模式相同的整块灰底，分割线上下与正文间距一致，编辑、阅读、导出 PDF 一致。
 
 0.1.9 README 改为中英双语（Obsidian 社区目录要求有英文介绍），发布附件附带 GitHub 构建来源证明。
 

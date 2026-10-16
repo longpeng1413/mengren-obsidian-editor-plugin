@@ -32,6 +32,19 @@ class PreviewWidget extends WidgetType {
   // Obsidian marks LP table widgets with cm-table-widget; layout CSS targets it.
   toDOM(){const div=document.createElement('div');div.className='cm-embed-block markdown-rendered'+(this.kind?' '+this.kind:'');div.innerHTML=rendered(this.text).trim();return div;}
 }
+// Obsidian's rendered rule (a .hr line holding <hr>) and an Excalidraw drawing,
+// which LP shows as a block .internal-embed beside the source lines.
+// The real rule line holds only <br><hr>: hide the inline buffers CM adds
+// around this mock widget, which would otherwise add 1em line boxes.
+document.head.appendChild(document.createElement('style')).textContent='.cm-line.hr > .cm-widgetBuffer { display: none; }';
+class RuleWidget extends WidgetType {
+  eq(){return true;}
+  toDOM(){const hr=document.createElement('hr');hr.style.margin='0';return hr;}
+}
+class DrawingWidget extends WidgetType {
+  eq(){return true;}
+  toDOM(){const div=document.createElement('div');div.className='internal-embed is-loaded media-embed image-embed';div.innerHTML='<svg width="200" height="100" style="display:block"><rect width="200" height="100" fill="#e7effb"/></svg>';return div;}
+}
 class InlineHTMLWidget extends WidgetType {
   constructor(raw){super();this.raw=raw;}
   eq(other){return this.raw===other.raw;}
@@ -60,7 +73,11 @@ function widgets(state) {
       marks.push(Decoration.replace({widget:new PreviewWidget(block,'cm-table-widget'),block:true}).range(offset,offset+block.length));
       offset+=block.length+1;i=end;continue;
     }
-    if(/^!\[/.test(lines[i])) marks.push(Decoration.replace({widget:new PreviewWidget(lines[i]),block:true}).range(offset,offset+lines[i].length));
+    if(/^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/.test(lines[i]) && (i===0||!lines[i-1].trim())) {
+      marks.push(Decoration.line({class:'hr'}).range(offset),Decoration.replace({widget:new RuleWidget()}).range(offset,offset+lines[i].length));
+    }
+    else if(lines[i]==='![[绘图块.md]]') marks.push(Decoration.replace({widget:new DrawingWidget(),block:true}).range(offset,offset+lines[i].length));
+    else if(/^!\[/.test(lines[i])) marks.push(Decoration.replace({widget:new PreviewWidget(lines[i]),block:true}).range(offset,offset+lines[i].length));
     else {
       const regex=/<span data-mengren-style="1" style="[^"]*">[\s\S]*?<\/span>/g;let match;
       while((match=regex.exec(lines[i])))marks.push(Decoration.replace({widget:new InlineHTMLWidget(match[0])}).range(offset+match.index,offset+regex.lastIndex));

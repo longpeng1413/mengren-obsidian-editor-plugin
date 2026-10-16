@@ -26,7 +26,6 @@ function layoutExtension(plugin) {
         view.state.selection.ranges.map(r=>[doc.lineAt(r.from).number,doc.lineAt(r.to).number]) : [];
       const { kinds, lines, continuations, quotes, quoteBlanks, indentedCode, fenceOf } = classify(doc.toString());
       const extraRows=plugin.settings.preserveExtraBlankLines ? blankSpacing({kinds,lines}).rows : new Set();
-      const paint=paintedGaps({kinds,lines,quotes,fenceOf});
       const tabRows=new Set();
       if(plugin.settings.tabKnowledgeLines) {
         const keys=tabKnowledgeKeys(doc.toString());
@@ -37,6 +36,9 @@ function layoutExtension(plugin) {
           i=j-1;
         }
       }
+      // Tab knowledge rows are painted like Reading's code box: one background
+      // over the whole run, rounded at its ends, with the half gap outside.
+      const paint=paintedGaps({kinds,lines,quotes,fenceOf,tabRows});
       let previous=-1;
       for (const range of view.visibleRanges) {
         const first = doc.lineAt(range.from).number, last = doc.lineAt(range.to).number;
@@ -70,7 +72,11 @@ function layoutExtension(plugin) {
           if(indentedCode[n-1]) {
             attrs.class='tet-code-line';
             const tabKnowledge=tabRows.has(n-1);
-            if(tabKnowledge) attrs.class=lines[n-1].text.trim()?'tet-code-line tet-tab-knowledge-line tet-block-start tet-block-end':'tet-gap tet-tab-gap';
+            if(tabKnowledge) {
+              attrs.class=lines[n-1].text.trim()?'tet-code-line tet-tab-knowledge-line tet-block-start tet-block-end':'tet-gap tet-tab-gap';
+              if(!tabRows.has(n-2)) attrs.class+=' tet-tab-first';
+              if(!tabRows.has(n)) attrs.class+=' tet-tab-last';
+            }
             else {
               if(!indentedCode[n-2]) attrs.class+=' tet-block-start';
               if(!indentedCode[n]) attrs.class+=' tet-block-end';

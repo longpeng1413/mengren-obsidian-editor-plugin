@@ -209,16 +209,17 @@ function blankSpacing(data) {
   return {rows,runs};
 }
 
-/** Painted blocks (fenced code background, quote bar, Callout box) draw over
- * their own half of the visible prose gap, so Live Preview restores that half
- * outside the paint: on the first plain blank between two blocks (counting one
- * per painted side), or as edge space on an unpainted line that touches the
- * paint directly. Tables and images carry their own outside padding. Only
- * unindented blocks count: indented quotes/code inside lists keep list spacing,
- * as in Reading/PDF where only top-level blocks are wrapped.
+/** Painted blocks (fenced code background, quote bar, Callout box, Tab
+ * knowledge rows given as data.tabRows) draw over their own half of the
+ * visible prose gap, so Live Preview restores that half outside the paint: on
+ * the first plain blank between two blocks (counting one per painted side), or
+ * as edge space on an unpainted line that touches the paint directly. Tables,
+ * images and horizontal rules carry their own outside padding. Only unindented
+ * blocks count: indented quotes/code inside lists keep list spacing, as in
+ * Reading/PDF where only top-level blocks are wrapped.
  * Returns {blanks: Map(row -> 1|2), above: Set(row), below: Set(row)}. */
 function paintedGaps(data) {
-  const {lines,kinds,quotes,fenceOf}=data;
+  const {lines,kinds,quotes,fenceOf,tabRows}=data;
   const blanks=new Map(),above=new Set(),below=new Set();
   const quoteTop=Array(lines.length).fill(false);
   for(let i=0;i<lines.length;i++) if(quotes[i]) {
@@ -227,8 +228,9 @@ function paintedGaps(data) {
     for(let k=i;k<=end;k++)quoteTop[k]=top;
     i=end;
   }
-  const painted=i=>i>=0 && i<lines.length && (quoteTop[i] || (fenceOf[i]>=0 && /^[`~]/.test(lines[fenceOf[i]].text)));
-  const own=i=>kinds[i]==='table' || kinds[i]==='image';
+  const painted=i=>i>=0 && i<lines.length && (quoteTop[i] || tabRows?.has(i) || (fenceOf[i]>=0 && /^[`~]/.test(lines[fenceOf[i]].text)));
+  const rule=i=>kinds[i]==='protected' && !quotes[i] && !(fenceOf[i]>=0) && /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/.test(lines[i].text);
+  const own=i=>kinds[i]==='table' || kinds[i]==='image' || rule(i);
   for(let i=0;i<lines.length;i++) {
     if(kinds[i]==='blank') {
       let end=i;while(kinds[end+1]==='blank')end++;

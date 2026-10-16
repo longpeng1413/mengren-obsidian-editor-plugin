@@ -33,7 +33,7 @@
 
 一个块上下各 0.28em；关闭主题段落/list 的额外间距；LP 结构性空行视觉高度为零。
 
-0.1.7 “涂色块”（围栏代码背景、引用竖线、Callout 盒子、表格框线、单独图片）外侧各留 `--tet-paint-gap` = 块留白 + 半份行距（按约 1em 的中文字形计算），使“涂色边 ↔ 文字字形”“涂色边 ↔ 涂色边”与正文字形之间的可见空白相同。该变量用 `@property` 注册为长度，在编辑/阅读根节点各解析一次，标题行引用时不随标题字号放大。LP：`paintedGaps()` 只认顶格代码块与引用，给它们旁边第一个普通空行加 `tet-paint-gap`（两侧都是时 `tet-paint-gap-2`），无空行直接相连时给贴着的非涂色行加 `tet-paint-above/below`（用 padding，不用 border，避免整像素取整）；表格 widget 与图片行自带该留白。阅读/PDF：PDF 导出在隐藏窗口里把每个顶层块包进无类名的 div（`.print > .markdown-preview-view > div`），没有 `el-*` 分区，因此规则按容器所含内容匹配 `:is(.markdown-preview-sizer, .print > .markdown-preview-view) > div:has(> …)`，两处共用。
+0.1.7 “涂色块”（围栏代码背景、引用竖线、Callout 盒子、表格框线、单独图片；之后加入 Tab 知识行灰底与分割线）外侧各留 `--tet-paint-gap` = 块留白 + 半份行距（按约 1em 的中文字形计算），使“涂色边 ↔ 文字字形”“涂色边 ↔ 涂色边”与正文字形之间的可见空白相同。该变量用 `@property` 注册为长度，在编辑/阅读根节点各解析一次，标题行引用时不随标题字号放大。LP：`paintedGaps()` 只认顶格代码块与引用，给它们旁边第一个普通空行加 `tet-paint-gap`（两侧都是时 `tet-paint-gap-2`），无空行直接相连时给贴着的非涂色行加 `tet-paint-above/below`（用 padding，不用 border，避免整像素取整）；表格 widget、图片行、块状嵌入图（`.cm-content > .internal-embed.image-embed`，如 Excalidraw）和分割线行（`.cm-line.hr`）自带该留白。Tab 知识行段由布局传入 `paintedGaps({tabRows})` 计为涂色，编辑模式把整段画成与阅读模式相同的代码背景块（首尾行圆角，隐藏缩进参考线）。阅读/PDF：PDF 导出在隐藏窗口里把每个顶层块包进无类名的 div（`.print > .markdown-preview-view > div`），没有 `el-*` 分区，因此规则按容器所含内容匹配 `:is(.markdown-preview-sizer, .print > .markdown-preview-view) > div:has(> …)`，两处共用。
 
 普通引用、嵌套列表、列表内已有空行的续段与独立缩进代码参与同一留白模型。阅读模式取消容器的重复 padding；列表/引用内部段落之间只留下等效 0.56em。0.1.4 移除 Enter keymap 和 paragraphEnter 设置，全部键盘编辑规则交由宿主，文档改变仅来自宿主原生编辑或明确执行的插件写入命令。
 
