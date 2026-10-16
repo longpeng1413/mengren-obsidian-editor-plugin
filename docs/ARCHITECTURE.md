@@ -10,6 +10,8 @@
 | `src/image-resize.mjs` | 源码定位、Pointer Events、覆盖层、尺寸提交、并发保护 |
 | `src/text-style.mjs` | Markdown 行内语义树、视觉属性读取/合并/规范化、快照与单事务提交 |
 | `src/text-style-view.mjs` | 从源码语义派生 LP HTML 组件的粗体/斜体/删除线显示，不写笔记 |
+| `src/speech-text.mjs` | 纯函数：Markdown → 朗读句子，每个字保留原文偏移；跳过属性区/代码/公式/注释/网址/嵌入，按句末标点和行切句，超长句在软停顿处切开 |
+| `src/speech.mjs` | 听书：系统朗读（Web Speech API）播放控制、编辑器高亮 StateField、阅读模式 CSS Highlight、播放条、朗读位置记录 |
 | `styles.css` | Live Preview / 语义阅读块 / PDF 样式和非打印控件 |
 | `tests/` | 纯算法与真实 CM6/Chromium 夹具回归 |
 
@@ -58,6 +60,10 @@
 调色板打开前捕获文本/文件/选区，确认文本仍一致后提交。Marked Lexer 读取行内语义树，但不从 HTML 反向生成 Markdown：原 delimiters、链接目标和标题字节原样保留。视觉标签展平为属性，选区内只修改目标属性，输出统一 owned span；相邻相同属性合并、空属性解包。混合语义保留多个兄弟 span，受保护语法不插入标签。详细流程和边界见 [TEXT-STYLES.md](TEXT-STYLES.md)。
 
 Live Preview 将 inline HTML 渲染为独立组件，不能仅凭 span 外层 `**` 期待继承粗体。新增 ViewPlugin 通过 posAtDOM 映射源位置，派生临时语义类；MutationObserver 处理异步 widget 重建，requestMeasure 分离读写。语义改变或停用时清理派生类，持久化 CSS 只含视觉属性。Reading/PDF 不需要此补偿。
+
+## Listening
+
+两种朗读来源：系统声音（Web Speech API）与百度翻译朗读音频（`requestUrl` 取 MP3，`Blob` + `Audio` 播放，语速用 `playbackRate`，预取后两句，内存缓存上限 6 句，停止时清空并释放对象 URL）。“自动”在 `speechSynthesis` 不存在或首句 5 秒无声时改用百度。系统声音一次只朗读一句（`SpeechSynthesisUtterance`），读完由 `onend` 推进；系统声音的暂停 = 取消并在继续时重读当前句，避免各平台 `pause()` 行为不一；百度音频暂停后从句中继续。每次朗读带递增 token，取消产生的迟到事件被忽略；首次朗读 5 秒内既没开始也没在说话，判定设备不能发声并提示。编辑模式的当前句写进 CM6 StateField，随编辑映射；下一句开始前若笔记已改，按映射位置重新切句接着读。阅读模式用 CSS Custom Highlight API 画高亮，不改阅读 DOM；只在包含该句源码偏移的已渲染分区里查找文字（依赖 `previewMode.renderer.sections` 的 `start/end.offset`，属内部数据，缺失时退回整页查找），找不到时按行号滚动后重试。朗读位置存 `data.json` 的 `speechProgress`，加载与写入时裁剪为最近 200 篇、180 天。
 
 ## Maintenance risks
 

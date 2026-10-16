@@ -8,10 +8,12 @@ import Trader from '../../src/main.mjs';
 import {scanImages,isExcalidraw,formatNote} from '../../src/markdown.mjs';
 
 for(const proto of [HTMLElement.prototype,DocumentFragment.prototype]) {
-  proto.createEl=function(tag,options={}){const el=document.createElement(tag);if(options.text)el.textContent=options.text;if(options.cls)el.className=options.cls;this.appendChild(el);return el;};
+  proto.createEl=function(tag,options={}){const el=document.createElement(tag);if(options.text)el.textContent=options.text;if(options.cls)el.className=options.cls;for(const [k,v] of Object.entries(options.attr||{}))el.setAttribute(k,v);this.appendChild(el);return el;};
   proto.createDiv=function(options={}){return this.createEl('div',options);};proto.createSpan=function(options={}){return this.createEl('span',options);};
   proto.empty=function(){this.replaceChildren();};
   proto.setText=function(text){this.textContent=text;};
+  proto.addClass=function(...c){this.classList?.add(...c);};proto.removeClass=function(...c){this.classList?.remove(...c);};
+  proto.toggleClass=function(c,on){this.classList?.toggle(c,on);};
 }
 
 const esc=s=>s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -93,21 +95,27 @@ async function setup(text,mode='live') {
   const file={path:'笔记/验收.md',basename:'验收',extension:'md'};
   const store=new Map([[file.path,text]]),backups=[];
   const callbacks=new Map();let excalidraw=true;
-  const app={workspace:{containerEl:document.body,on:(name,fn)=>{callbacks.set(name,fn);return {};},iterateAllLeaves:fn=>fn({view:info})},vault:{configDir:'.obsidian',getAbstractFileByPath:p=>p===file.path?file:{path:p,basename:p.split('/').at(-1),extension:p.split('.').at(-1)},read:async f=>store.get(f.path),process:async(f,fn)=>{store.set(f.path,fn(store.get(f.path)));return store.get(f.path);},adapter:{exists:async()=>true,mkdir:async()=>{},write:async(p,t)=>backups.push({p,t})}},metadataCache:{getFirstLinkpathDest:(p,base)=>/^https?:/.test(p)?null:{path:p.includes('/')?p:'附件/'+p,extension:p.split('.').at(-1)},getFileCache:f=>({frontmatter:f.path.includes('绘图')?{'excalidraw-plugin':'parsed'}:{}})},plugins:{getPlugin:()=>excalidraw?{}:null}};
-  const root=document.createElement('div');root.className=mode==='live'?'markdown-source-view mod-cm6 is-live-preview':'markdown-preview-view markdown-rendered';document.body.appendChild(root);
+  const app={workspace:{containerEl:document.body,on:(name,fn)=>{callbacks.set(name,fn);return {};},iterateAllLeaves:fn=>fn({view:info}),onLayoutReady:fn=>fn(),getLeavesOfType:type=>type==='markdown'?[{view:info}]:[],getActiveViewOfType:()=>info},vault:{configDir:'.obsidian',on:()=>({}),cachedRead:async f=>store.get(f.path),getAbstractFileByPath:p=>p===file.path?file:{path:p,basename:p.split('/').at(-1),extension:p.split('.').at(-1)},read:async f=>store.get(f.path),process:async(f,fn)=>{store.set(f.path,fn(store.get(f.path)));return store.get(f.path);},adapter:{exists:async()=>true,mkdir:async()=>{},write:async(p,t)=>backups.push({p,t})}},metadataCache:{getFirstLinkpathDest:(p,base)=>/^https?:/.test(p)?null:{path:p.includes('/')?p:'附件/'+p,extension:p.split('.').at(-1)},getFileCache:f=>({frontmatter:f.path.includes('绘图')?{'excalidraw-plugin':'parsed'}:{}})},plugins:{getPlugin:()=>excalidraw?{}:null}};
+  // A view's header actions and content wrapper, as in Obsidian's MarkdownView.
+  const actionsEl=document.body.appendChild(document.createElement('div'));actionsEl.className='view-actions';
+  const contentEl=document.body.appendChild(document.createElement('div'));contentEl.className='view-content';
+  const root=document.createElement('div');root.className=mode==='live'?'markdown-source-view mod-cm6 is-live-preview':'markdown-preview-view markdown-rendered';contentEl.appendChild(root);
   const plugin=new Trader(app,{id:'trader-editor-tools'});let cm;
-  const info=new MarkdownView();info.file=file;info.containerEl=root;info.getMode=()=>mode==='live'?'source':'preview';info.getState=()=>({source:false});
+  const info=new MarkdownView();info.file=file;info.containerEl=root;info.getMode=()=>mode==='live'?'source':'preview';info.actionsEl=actionsEl;info.contentEl=contentEl;info.getState=()=>({source:false});
   await plugin.onload();
   if(mode==='live') {
     const editor={getValue:()=>cm.state.doc.toString(),getCursor:(which='head')=>editor.offsetToPos(which==='from'?cm.state.selection.main.from:which==='to'?cm.state.selection.main.to:cm.state.selection.main.head),posToOffset:p=>cm.state.doc.line(p.line+1).from+p.ch,offsetToPos:p=>{const l=cm.state.doc.lineAt(Math.min(p,cm.state.doc.length));return {line:l.number-1,ch:p-l.from};},getSelection:()=>cm.state.sliceDoc(cm.state.selection.main.from,cm.state.selection.main.to),setSelection:(from,to)=>cm.dispatch({selection:{anchor:editor.posToOffset(from),head:editor.posToOffset(to)}}),focus:()=>cm.focus(),lastLine:()=>cm.state.doc.lines-1,getLine:n=>cm.state.doc.line(n+1).text,transaction:tx=>{const changes=tx.changes.map(c=>({from:editor.posToOffset(c.from),to:editor.posToOffset(c.to),insert:c.text}));const next=cm.state.doc.toString();let nextText=next;for(const c of [...changes].reverse()) nextText=nextText.slice(0,c.from)+c.insert+nextText.slice(c.to);const pos=p=>{const ls=nextText.split('\n');return ls.slice(0,p.line).reduce((s,l)=>s+l.length+1,0)+p.ch;};cm.dispatch({changes,selection:tx.selection?{anchor:pos(tx.selection.from),head:pos(tx.selection.to)}:undefined,annotations:isolateHistory.of('full')});}};
     info.editor=editor;
     cm=new EditorView({parent:root,state:EditorState.create({doc:text,extensions:[editorInfoField.init(()=>info),history(),widgetField,...plugin.ext,EditorView.lineWrapping]})});
+    editor.cm=cm;
   } else {
     root.innerHTML=rendered(text);
-    const sections=new WeakMap();let offset=0,index=0;
+    const sections=new WeakMap(),renderSections=[];let offset=0,index=0;
     for(const token of marked.lexer(text)) {
       if(token.type!=='space') {
         const node=root.children[index++];
+        // Obsidian's renderer sections: the rendered element and its source offsets.
+        if(node)renderSections.push({el:node,start:{offset},end:{offset:offset+token.raw.replace(/\n+$/,'').length}});
         if(node)sections.set(node,{lineStart:text.slice(0,offset).split('\n').length-1,lineEnd:text.slice(0,offset+token.raw.replace(/\n+$/,'').length).split('\n').length-1});
       }
       offset+=token.raw.length;
@@ -118,6 +126,7 @@ async function setup(text,mode='live') {
       return section ? {text:store.get(file.path),...section} : {text:store.get(file.path),lineStart:0,lineEnd:store.get(file.path).split('\n').length-1};
     }};
     for(const fn of plugin.post) fn(root,ctx);
+    info.previewMode={containerEl:root,getScroll:()=>0,applyScroll:()=>{},renderer:{sections:renderSections}};
   }
   window.fixture={plugin,app,file,info,root,cm,store,backups,notices,callbacks,text:()=>mode==='live'?cm.state.doc.toString():store.get(file.path),command:id=>plugin.commands.get(id).editorCallback(info.editor,info),undo:()=>undo(cm),redo:()=>redo(cm),excalidraw:value=>excalidraw=value};
   return true;

@@ -2,7 +2,7 @@
 
 **English** · [中文说明](#中文说明)
 
-Mengren Editor keeps Markdown notes compact and evenly spaced, resizes images by dragging their corners, and adds text color, highlight and underline, while leaving Obsidian's native Markdown editing untouched. It was formerly published as 猛人obsidian编辑插件 and was renamed in 0.1.8 to follow the Community directory rules; the internal ID `trader-editor-tools` is unchanged, so existing settings, hotkeys and backups carry over. The interface is primarily Chinese. MIT licensed, maintained by [longpeng1413](https://github.com/longpeng1413).
+Mengren Editor keeps Markdown notes compact and evenly spaced, resizes images by dragging their corners, adds text color, highlight and underline, and reads notes aloud, while leaving Obsidian's native Markdown editing untouched. It was formerly published as 猛人obsidian编辑插件 and was renamed in 0.1.8 to follow the Community directory rules; the internal ID `trader-editor-tools` is unchanged, so existing settings, hotkeys and backups carry over. The interface is primarily Chinese. MIT licensed, maintained by [longpeng1413](https://github.com/longpeng1413).
 
 [Releases](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/releases/latest) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Architecture](docs/ARCHITECTURE.md) · [Testing](TESTING.md) · [Issues](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/issues)
 
@@ -40,6 +40,12 @@ Click an image and drag any corner to resize it proportionally; hold Alt for ind
 
 Apply text colors, background highlights and underlines from the editor context menu, the command palette or hotkeys you assign. Each property can be added, changed or cleared on its own; they merge into a single readable HTML span while bold, italic, strikethrough and links keep their native Markdown syntax. Six palette slots are customizable. Inline code, wiki links, escapes and link targets are protected.
 
+### Listening (read aloud)
+
+Select the headphones button at the top right of a note, or run "听书" from the command palette. With text selected, only the selection is read; otherwise reading continues where you left off in that note, or starts at the cursor (in Reading view, at the top of the screen). A floating player offers pause and resume, previous and next sentence, speed from 0.75x to 2x, voice choice, "read from the start" and "read from here". The sentence being read is highlighted in Live Preview and Reading view, and the note scrolls along with it; scrolling by hand stops the following until you tap the locate button. Front matter, code blocks, math, comments, URLs and embeds are skipped, and links are read by their visible text.
+
+Choose the reading source in settings. **System voice** uses your device's speech engine through the standard Web Speech API: offline and free, nothing leaves the device; on Windows the built-in Chinese voices are Huihui, Kangkang and Yaoyao. **Baidu** uses the read-aloud audio of Baidu Translate: free and without an account, but it needs the internet and **each sentence being read is sent to fanyi.baidu.com**; it is not an officially offered service and can stop working if Baidu changes it, in which case the plugin says so. **Automatic** (default) uses the system voice when the device has one, and Baidu otherwise, for example in Obsidian for Android, which provides no system speech engine. Downloaded audio is kept in memory only, at most six sentences, and cleared when listening stops. The reading position of up to 200 notes is remembered for 180 days and can be cleared in settings.
+
 ### Reading view and PDF
 
 Reading view and PDF export use the same spacing and styles as Live Preview. Resize handles never appear in print, and colors and highlights are preserved.
@@ -61,7 +67,7 @@ Then enable **Mengren Editor** under Settings, Community plugins. To upgrade man
 
 ## Privacy and safety
 
-- No network requests, telemetry, accounts, payments or ads.
+- No telemetry, accounts, payments or ads. The only network request is optional: when listening uses Baidu (chosen, or automatic on a device without a system voice), the sentence being read is sent to fanyi.baidu.com to get its audio. With the system voice, nothing leaves your device.
 - The plugin only reads and writes notes inside your vault, through the Obsidian API, and only after an explicit action: a confirmed formatting preview, a finished image drag, or a style command.
 - Before a formatting run or a Reading view image write, it can save the original note in the plugin's own `backups/` folder inside your vault configuration folder. Backups stay local and are never deleted automatically.
 - Stale documents, concurrent edits and ambiguous image matches are rejected instead of guessed.
@@ -98,9 +104,11 @@ Please report bugs with anonymized minimal Markdown, your Obsidian and plugin ve
 
 > **Mengren Editor（猛人编辑器）**，原名「猛人obsidian编辑插件」。0.1.8 起为符合 Obsidian 社区目录规则（名称不能含 “Obsidian”），显示名改为 Mengren Editor；内部 ID `trader-editor-tools` 不变，已有设置、快捷键和备份不受影响。
 
-版本 **0.1.10**，MIT 开源。完整可安装插件，不需要安装 Node.js，不需要编译。优先支持 Windows / Obsidian 1.13–1.14 / Live Preview；手机可安装，但尚未真机验收。
+版本 **0.1.11**，MIT 开源。完整可安装插件，不需要安装 Node.js，不需要编译。优先支持 Windows / Obsidian 1.13–1.14 / Live Preview；手机可安装，但尚未真机验收。
 
 [下载发布版](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/releases/latest) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md) · [架构](docs/ARCHITECTURE.md) · [测试记录](TESTING.md) · [问题反馈](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/issues)
+
+0.1.11 新增 **听书**：笔记右上角耳机按钮朗读笔记，句子高亮并跟随滚动，可调语速、记住读到的位置。电脑默认用离线的系统声音；手机（Obsidian 安卓版没有系统朗读）自动用百度朗读（联网）。
 
 0.1.10 **Tab 知识行、分割线、Excalidraw 绘图** 也按涂色块留出外侧空白：编辑模式的 Tab 行改为与阅读模式相同的整块灰底，分割线上下与正文间距一致，编辑、阅读、导出 PDF 一致。
 
@@ -252,6 +260,25 @@ Markdown 原生格式负责语义，插件只添加视觉层。以粗体同时�
 
 本版没有专门的悬浮手机工具条。触控拖动使用 Pointer Events，但 Android 真机、软键盘/长按冲突尚未验收；不要把 Windows 鼠标测试当作安卓已测试。手机建议优先用文字命令和图片尺寸命令。
 
+## 5. 听书（朗读笔记）
+
+点笔记右上角的 **耳机按钮**，或在命令面板运行 **听书：朗读 / 暂停当前笔记**：
+
+- 选中了文字：只读选中的部分。
+- 没选文字：接着这篇笔记上次读到的地方；没有记录时从光标处开始（阅读模式从当前屏幕顶部开始）。
+- 底部播放条：暂停 / 继续、上一句 / 下一句、语速（0.75–2 倍）、选声音；“更多”里可以从头读、从光标处（或当前屏幕）读、打开听书设置。
+- 正在读的句子会高亮，页面自动跟着滚动；自己滚动页面后停止跟随，点定位按钮回到朗读处。
+- 跳过属性区、代码块、公式、注释、网址和图片等嵌入；链接只读显示的文字；Tab 知识行、表格文字会读。
+- 一边听一边改笔记也可以，会从改动后对应的位置接着读。
+
+**朗读来源**在设置里选：
+
+- **系统声音（离线）**：设备自带的朗读，离线、免费，文字不出本机。Windows 自带中文声音是慧慧、康康、瑶瑶，可在“设置 > 时间和语言 > 语音”添加更多。
+- **百度朗读（联网）**：用百度翻译网页的朗读声音，免费、不用注册；需要联网，**正在朗读的句子会发送给百度翻译（fanyi.baidu.com）**。它不是百度正式开放的服务，百度改接口时可能失效，失效时会提示。
+- **自动（默认）**：有系统声音就用系统声音；没有时（例如 Obsidian 安卓版不提供系统朗读）或读不出声时，自动改用百度朗读。
+
+百度朗读的音频只临时放在内存里，最多 6 句，停止朗读就清空，不写硬盘。每篇笔记读到的位置最多记 200 篇、保存 180 天，可在设置里一键清除。
+
 ## 阅读模式、PDF 与主题
 
 阅读模式和 PDF 共享语义块样式；没有另一套“假段落”。图片尺寸和文字色写在内容里。Windows Obsidian 1.13.7、默认主题、Excalidraw 2.27.3 已实机验收，详细范围见 `TESTING.md`。
@@ -260,7 +287,7 @@ Markdown 原生格式负责语义，插件只添加视觉层。以粗体同时�
 
 ## 数据与安全
 
-无网络请求、无遥测、无外部服务。不会自动整理旧笔记；写入仅来自确认格式化、完成图片拖动/保存尺寸、执行文字样式命令。原文备份只保存在本地笔记库的插件目录。卸载插件不会删除笔记中的 HTML 或原生图片尺寸。
+无遥测、无账号。唯一的联网是可选的：听书使用“百度朗读”时（手动选择，或在没有系统朗读的设备上自动使用），正在朗读的句子会发给百度翻译以取得声音；使用系统声音时不联网。不会自动整理旧笔记；写入仅来自确认格式化、完成图片拖动/保存尺寸、执行文字样式命令。原文备份只保存在本地笔记库的插件目录。卸载插件不会删除笔记中的 HTML 或原生图片尺寸。
 
 ## 完整工程与开发
 

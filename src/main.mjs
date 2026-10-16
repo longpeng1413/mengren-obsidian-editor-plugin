@@ -1,9 +1,10 @@
-import { Plugin, PluginSettingTab, Setting, Modal, Notice, normalizePath } from 'obsidian';
+import { Plugin, PluginSettingTab, Setting, Modal, Notice, MarkdownView, normalizePath } from 'obsidian';
 import { formatNote, scanImages, imageDimensions, isImageTarget, isExcalidraw } from './markdown.mjs';
 import { captureSelection, commitStyle, HEX } from './text-style.mjs';
 import { textStyleExtension } from './text-style-view.mjs';
 import { layoutExtension, applyLayout, decorateTabKnowledge, refreshTabKnowledge, decorateExtraBlankLines, refreshExtraBlankLines } from './layout.mjs';
 import { ImageResizeManager, cleanTarget } from './image-resize.mjs';
+import { SpeechReader, speechExtension, pruneProgress, RATES, ENGINES } from './speech.mjs';
 
 const DEFAULTS = {
   layoutVersion:2, layoutEnabled:true, lineHeight:1.62, blockPadding:0.28,
@@ -13,6 +14,7 @@ const DEFAULTS = {
   tabKnowledgeLines:true,
   preserveExtraBlankLines:true,
   backupEnabled:true, imageResize:true, readingResize:true, freeResize:false, maxImageWidth:4096,
+  speechRemember:true, speechRate:1, speechVoice:'', speechEngine:'auto', speechProgress:{},
   colors:[
     {name:'风险红',text:'#d64545',background:'#ffd9dc'},
     {name:'重点橙',text:'#cb6c13',background:'#ffe1bd'},
@@ -39,6 +41,10 @@ function loadValidated(saved) {
     const colors = saved.colors.slice(0,12).filter(c=>c && HEX.test(c.text) && HEX.test(c.background)).map((c,i)=>({name:String(c.name || `颜色 ${i+1}`).slice(0,40),text:c.text,background:c.background}));
     if (colors.length) result.colors = colors;
   }
+  if (RATES.includes(saved.speechRate)) result.speechRate = saved.speechRate;
+  if (typeof saved.speechVoice === 'string') result.speechVoice = saved.speechVoice.slice(0,200);
+  if (Object.prototype.hasOwnProperty.call(ENGINES,saved.speechEngine)) result.speechEngine = saved.speechEngine;
+  result.speechProgress = pruneProgress(saved.speechProgress);
   return result;
 }
 
@@ -152,6 +158,7 @@ class TraderSettings extends PluginSettingTab {
     toggle('默认自由宽高','开启后直接拖动保存宽×高；关闭时按 Alt 临时自由调整。','freeResize');
     number('拖拽最大宽度（px）','maxImageWidth',100,8192,10);
     new Setting(el).setName('Excalidraw 检测').setDesc(p.excalidrawAvailable() ? '已检测到启用的 Excalidraw；使用原生嵌入尺寸语法。' : '未检测到启用的 Excalidraw。普通图片和其他功能照常可用；绘图需启用 Excalidraw 后测试。');
+    this.speechSettings(el);
     new Setting(el).setName('常用颜色').setHeading();
     el.createEl('p',{text:'每行依次为名称、文字色、背景色。前 9 行对应固定快捷键槽位；颜色、高亮、下划线独立叠加，高亮不改文字颜色。深色主题请按需同时设置文字色以确保对比度。',cls:'tet-muted'});
     s.colors.forEach((color,index)=>{
@@ -167,6 +174,38 @@ class TraderSettings extends PluginSettingTab {
     new Setting(el).setName('添加颜色').addButton(b=>b.setButtonText('添加').setDisabled(s.colors.length>=12).onClick(async()=>{s.colors.push({name:`颜色 ${s.colors.length+1}`,text:'#367bd6',background:'#d8eaff'});await p.saveSettings();this.display();}));
     new Setting(el).setName('恢复默认配色').addButton(b=>b.setButtonText('恢复').onClick(async()=>{s.colors=JSON.parse(JSON.stringify(DEFAULTS.colors));await p.saveSettings();this.display();}));
   }
+  speechSettings(el) {
+    const p=this.plugin, s=p.settings, speech=p.speech;
+    new Setting(el).setName('听书').setHeading();
+    el.createEl('p',{text:'点笔记右上角的耳机按钮开始朗读：有选中文字只读选中部分，否则接着上次的位置读，没有记录时从光标处（阅读模式从当前屏幕）开始。',cls:'tet-muted'});
+    const system=speech.available();
+    new Setting(el).setName('朗读来源').setDesc(`系统声音：设备自带，离线、免费，文字不出本机${system ? '' : '（这台设备的 Obsidian 不提供）'}。百度朗读：免费、不用注册，需要联网，正在朗读的句子会发送给百度翻译；它不是百度正式开放的服务，百度改接口时可能失效。自动：有系统声音就用系统声音，没有（例如安卓手机）或读不出声时用百度朗读。`)
+      .addDropdown(d=>{
+        for(const [key,label] of Object.entries(ENGINES)) d.addOption(key,label);
+        d.setValue(s.speechEngine).onChange(async value=>{await speech.setEngine(value);this.display();});
+      });
+    if(system && speech.engine()==='system') {
+      const voices=speech.synth.getVoices();
+      if(!voices.length && !this.waitedForVoices) { this.waitedForVoices=true; void speech.voices().then(list=>{ if(list.length) this.display(); }); }
+      const chinese=voices.filter(v=>/^zh/i.test(v.lang)), shown=chinese.length ? chinese : voices;
+      new Setting(el).setName('系统声音').setDesc(voices.length ? `本机共有 ${voices.length} 个系统声音，这里列出${chinese.length ? '中文' : '全部'}声音。Windows 可在“设置 > 时间和语言 > 语音”添加更多声音。` : '还没有读到系统声音；朗读时会使用系统默认声音。')
+        .addDropdown(d=>{
+          d.addOption('','自动（优先中文）');
+          for(const voice of shown) d.addOption(voice.name,voice.name);
+          if(s.speechVoice && !shown.some(v=>v.name===s.speechVoice)) d.addOption(s.speechVoice,`${s.speechVoice}（当前设备没有）`);
+          d.setValue(s.speechVoice).onChange(value=>void speech.setVoice(value));
+        });
+    }
+    new Setting(el).setName('语速').addDropdown(d=>{
+      for(const rate of RATES) d.addOption(String(rate),`${rate}×`);
+      d.setValue(String(s.speechRate)).onChange(value=>void speech.setRate(Number(value)));
+    }).addButton(b=>b.setButtonText('试听').onClick(()=>void speech.preview()));
+    new Setting(el).setName('记住每篇笔记读到的位置').setDesc('下次点耳机按钮时接着读；读完一篇后从头开始。')
+      .addToggle(t=>t.setValue(s.speechRemember).onChange(async value=>{s.speechRemember=value;await p.saveData(s);}));
+    const count=Object.keys(s.speechProgress).length;
+    new Setting(el).setName('朗读位置记录').setDesc(`已记住 ${count} 篇笔记的位置。最多保留 200 篇、180 天，更旧的自动删除；笔记改名或删除时同步更新。`)
+      .addButton(b=>b.setButtonText('清除记录').setDisabled(!count).onClick(async()=>{await speech.clearProgress();this.display();}));
+  }
 }
 
 export default class TraderEditorTools extends Plugin {
@@ -174,6 +213,7 @@ export default class TraderEditorTools extends Plugin {
     this.settings=loadValidated(await this.loadData());
     this.cmViews=new Set(); this.documents=new Set();
     this.images=new ImageResizeManager(this);
+    this.speech=new SpeechReader(this);
     this.bindDocument(this.app.workspace.containerEl.ownerDocument);
     this.app.workspace.iterateAllLeaves(leaf=>this.bindDocument(leaf.view.containerEl.ownerDocument));
     this.registerEvent(this.app.workspace.on('window-open',(_,window)=>this.bindDocument(window.document)));
@@ -182,6 +222,21 @@ export default class TraderEditorTools extends Plugin {
     this.registerEvent(this.app.workspace.on('file-open',()=>{this.images.resolveId++;this.images.close();}));
     this.registerEditorExtension(layoutExtension(this));
     this.registerEditorExtension(textStyleExtension());
+    this.registerEditorExtension(speechExtension());
+    this.app.workspace.onLayoutReady(()=>this.speech.attachAll());
+    this.registerEvent(this.app.workspace.on('layout-change',()=>{this.speech.attachAll();this.speech.check();}));
+    this.registerEvent(this.app.workspace.on('file-open',()=>this.speech.check()));
+    this.registerEvent(this.app.vault.on('rename',(file,oldPath)=>this.speech.renameProgress(file,oldPath)));
+    this.registerEvent(this.app.vault.on('delete',file=>this.speech.deleteProgress(file)));
+    const listen=how=>checking=>{
+      const view=this.app.workspace.getActiveViewOfType(MarkdownView);
+      if(!view) return false;
+      if(!checking) { if(how==='toggle') this.speech.toggleFor(view); else void this.speech.start(view,how); }
+      return true;
+    };
+    this.addCommand({id:'read-aloud',name:'听书：朗读 / 暂停当前笔记',checkCallback:listen('toggle')});
+    this.addCommand({id:'read-aloud-from-start',name:'听书：从头朗读当前笔记',checkCallback:listen('start')});
+    this.addCommand({id:'read-aloud-stop',name:'听书：停止朗读',checkCallback:checking=>{ if(!this.speech.session) return false; if(!checking) this.speech.stop(); return true; }});
     this.registerMarkdownPostProcessor((el,ctx)=>this.images.annotate(el,ctx));
     this.registerMarkdownPostProcessor((el,ctx)=>decorateTabKnowledge(el,ctx,this.settings));
     this.registerMarkdownPostProcessor((el,ctx)=>decorateExtraBlankLines(el,ctx,this.settings));
@@ -237,6 +292,10 @@ export default class TraderEditorTools extends Plugin {
     for(const doc of this.documents) {applyLayout(doc,this.settings);refreshTabKnowledge(doc,this.settings);refreshExtraBlankLines(doc,this.settings);}
     for(const view of this.cmViews) view.dispatch({});
   }
+  openSettings() {
+    // The settings modal has no public API to open a tab; guarded internal call.
+    try { this.app.setting.open(); this.app.setting.openTabById(this.manifest.id); } catch { new Notice('请在设置的第三方插件列表里打开本插件的设置，调整听书选项'); }
+  }
   excalidrawAvailable() {
     // Excalidraw is an optional third-party plugin. This guarded registry probe
     // is the only dependency on Obsidian's non-public plugin registry.
@@ -262,6 +321,7 @@ export default class TraderEditorTools extends Plugin {
   }
   onunload() {
     this.images?.destroy();
+    this.speech?.destroy();
     for(const doc of this.documents || []) {refreshTabKnowledge(doc,null);refreshExtraBlankLines(doc,null);doc.body.classList.remove('tet-enabled');doc.getElementById('tet-layout-vars')?.remove();}
     this.cmViews?.clear();
   }

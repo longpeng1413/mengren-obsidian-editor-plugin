@@ -14,7 +14,19 @@ class Plugin {
   addSettingTab(tab){this.tab=tab;}
 }
 class PluginSettingTab {constructor(app,plugin){this.app=app;this.plugin=plugin;this.containerEl=document.createElement('div');}}
-class MarkdownView {}
+class MarkdownView {
+  addAction(icon,title,run){const el=document.createElement('button');el.className='view-action';el.dataset.icon=icon;el.setAttribute('aria-label',title);el.addEventListener('click',run);(this.actionsEl||document.body).appendChild(el);return el;}
+}
+// Menus record their items on window.lastMenu so tests can pick one.
+class Menu {
+  constructor(){this.items=[];}
+  addItem(fn){const item={title:'',checked:false,disabled:false,run:null};const api={setTitle:t=>{item.title=t;return api;},setIcon:()=>api,setChecked:c=>{item.checked=!!c;return api;},setDisabled:d=>{item.disabled=!!d;return api;},onClick:f=>{item.run=f;return api;}};fn(api);this.items.push(item);return this;}
+  addSeparator(){return this;}
+  showAtPosition(){window.lastMenu=this;return this;}
+}
+const setIcon=(el,icon)=>{el.dataset.icon=icon;};
+// Network goes through window.requestUrlMock, which each test scripts.
+const requestUrl=options=>window.requestUrlMock ? window.requestUrlMock(options) : Promise.reject(new Error('offline'));
 class Modal {
   constructor(app){this.app=app;this.modalEl=document.createElement('div');this.modalEl.className='modal';this.titleEl=document.createElement('div');this.titleEl.className='modal-title';this.contentEl=document.createElement('div');this.modalEl.append(this.titleEl,this.contentEl);}
   open(){document.body.appendChild(this.modalEl);this.onOpen();}
@@ -41,6 +53,7 @@ class Setting {
   addColorPicker(fn){const c=this.make('input','color');c.colorPickerEl=c.inputEl;delete c.inputEl;fn(c);return this;}
   addToggle(fn){fn(this.make('input','checkbox'));return this;}
   addSlider(fn){fn(this.make('input','range'));return this;}
+  addDropdown(fn){const c=this.make('select');c.addOption=(value,label)=>{const o=document.createElement('option');o.value=value;o.textContent=label;c.inputEl.appendChild(o);return c;};c.onChange=f=>{c.inputEl.addEventListener('change',()=>f(c.inputEl.value));return c;};fn(c);return this;}
 }
 const normalizePath=p=>p.replace(/\\/g,'/').replace(/\/{2,}/g,'/');
-module.exports={Plugin,PluginSettingTab,Setting,Modal,Notice,MarkdownView,editorInfoField,normalizePath,notices};
+module.exports={Plugin,PluginSettingTab,Setting,Modal,Notice,MarkdownView,Menu,setIcon,requestUrl,editorInfoField,normalizePath,notices};

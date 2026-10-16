@@ -282,3 +282,33 @@ test('clear covers selected legacy siblings but never changes unselected sibling
   const custom='<span class="custom">风险</span>';
   assert.equal(stylePatch(custom,0,custom.length,'clear').text,custom);
 });
+
+const {speechSegments,segmentAt}=require('../src/speech-text.mjs');
+test('read-aloud sentences skip metadata, code, math, comments, URLs and embeds, keeping source offsets',()=>{
+  const text=['---','tags: [甲]','---','# 标题 #标签','> [!note] 提示标题','> 引用，含[[笔记/甲.md#小节|别名]]和[[乙#二级]]。','','```js','const a=1;','```',
+    '正文$x^2$公式%%注释%%，[文字](https://a.com)，网址 https://b.com/x 结束。![[图.png]]![说明](c.png)','| 层次 | 职责 |','| --- | --- |','| 甲 | 乙 |','',
+    '**粗体**和==高亮==和<span data-mengren-style="1" style="color:red">红字</span>。Hello world. Next one!','$$','E=mc^2','$$','- [ ] 任务 ^abc123','\t知识行[^1]','***','<!-- 多行','注释 -->尾巴'].join('\n');
+  const s=speechSegments(text);
+  assert.deepEqual(s.map(x=>x.text),['标题','提示标题','引用，含别名和乙 二级。','正文公式，文字，网址 结束。','层次 ， 职责','甲 ， 乙','粗体和高亮和红字。','Hello world.','Next one!','任务','知识行','尾巴']);
+  // Offsets point at the first and last spoken characters in the source.
+  for(const x of s) {assert.equal(text[x.from],x.text[0]);assert.equal(text[x.to-1],x.text.at(-1));}
+  assert.equal(text.slice(s[2].from,s[2].to),'引用，含[[笔记/甲.md#小节|别名]]和[[乙#二级]]。');
+  // CRLF and a restricted range (selection / from here) keep the same offsets.
+  const crlf=speechSegments(text.replace(/\n/g,'\r\n'));
+  assert.deepEqual(crlf.map(x=>x.text),s.map(x=>x.text));
+  const from=text.indexOf('公式'),to=text.indexOf('网址');
+  assert.deepEqual(speechSegments(text,{start:from,end:to}).map(x=>x.text),['公式，文字']);
+  assert.equal(segmentAt(s,text.indexOf('含')),2);
+  assert.equal(segmentAt(s,text.length),s.length);
+});
+test('long read-aloud sentences split at a soft break, never mid-word when avoidable',()=>{
+  const clause='这是一段很长的说明文字';
+  const text=Array(12).fill(clause).join('，')+'。';
+  const s=speechSegments(text);
+  assert.ok(s.length>1);
+  for(const x of s) {assert.ok(x.text.length<=80,x.text);assert.ok(x.text.endsWith('，')||x.text.endsWith('。')||x.text.endsWith('文字'),x.text);}
+  assert.equal(s.map(x=>x.text).join('').replace(/，/g,''),text.replace(/[，]/g,''));
+  // Closing quotes stay with their sentence; unclosed fences silence the rest.
+  assert.deepEqual(speechSegments('他说：“好。”然后走了。').map(x=>x.text),['他说：“好。”','然后走了。']);
+  assert.deepEqual(speechSegments('前文\n```\n代码').map(x=>x.text),['前文']);
+});

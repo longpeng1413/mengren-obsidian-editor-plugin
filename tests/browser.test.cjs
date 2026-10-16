@@ -570,3 +570,134 @@ test('formatting repaired quote boundaries agrees with standard reading Markdown
   assert.equal(await page.locator('blockquote h2,blockquote ul').count(),0);
   assert.equal(await page.locator('.markdown-preview-view > p').last().textContent(),'后续正文');
 });
+
+// A scripted speech engine: records utterances; tests end them on demand.
+async function fakeSpeech() {
+  await page.evaluate(()=>{
+    window.spoken=[];
+    const synth={speaking:false,pending:false,current:null,
+      getVoices:()=>[{name:'中文甲',lang:'zh-CN',localService:true},{name:'中文乙',lang:'zh-TW',localService:true},{name:'English',lang:'en-US',localService:true}],
+      speak(u){this.current=u;this.speaking=true;spoken.push({text:u.text,rate:u.rate,voice:u.voice?.name});setTimeout(()=>u.onstart?.(),0);},
+      cancel(){const u=this.current;this.current=null;this.speaking=false;if(u)setTimeout(()=>u.onerror?.({error:'interrupted'}),0);},
+      end(){const u=this.current;this.current=null;this.speaking=false;u?.onend?.();},
+      addEventListener(){}};
+    Object.defineProperty(window,'speechSynthesis',{value:synth,configurable:true});
+    window.SpeechSynthesisUtterance=class{constructor(text){this.text=text;}};
+  });
+}
+const said=()=>page.evaluate(()=>spoken.map(s=>s.text));
+const endSentence=async()=>{await page.evaluate(()=>speechSynthesis.end());await page.waitForTimeout(120);};
+test('listening reads sentences in order, highlights them, follows edits and remembers the position',async()=>{
+  const input='# 标题\n\n第一句。第二句！\n\n```\n代码\n```\n\n第三句[[笔记|别名]]。';
+  await setup(input);await fakeSpeech();
+  const action=page.locator('.view-action[data-icon=headphones]');
+  assert.equal(await action.count(),1);
+  await action.click();await page.waitForTimeout(120);
+  assert.deepEqual(await said(),['标题']);
+  assert.equal(await page.locator('.tet-speaking').textContent(),'标题');
+  assert.equal(await page.locator('.tet-speech-bar').getAttribute('data-state'),'playing');
+  await endSentence();
+  assert.equal(await page.locator('.tet-speaking').textContent(),'第一句。');
+  await page.locator('.tet-speech-btn[aria-label="下一句"]').click();await page.waitForTimeout(150);
+  assert.equal((await said()).at(-1),'第二句！');
+  // Pause and resume repeat the current sentence; nothing else is spoken meanwhile.
+  await page.locator('.tet-speech-main').click();await page.waitForTimeout(80);
+  assert.equal(await page.locator('.tet-speech-bar').getAttribute('data-state'),'paused');
+  const count=(await said()).length;
+  await page.locator('.tet-speech-main').click();await page.waitForTimeout(150);
+  assert.equal((await said()).length,count+1);assert.equal((await said()).at(-1),'第二句！');
+  // Text inserted above while listening: reading continues after the mapped sentence, skipping code.
+  await page.evaluate(()=>fixture.cm.dispatch({changes:{from:0,insert:'新增一段。\n\n'}}));
+  await endSentence();
+  assert.equal((await said()).at(-1),'第三句别名。');
+  assert.equal(await page.locator('.tet-speaking').textContent(),'第三句[[笔记|别名]]。');
+  // Speed applies at once and is saved.
+  await page.locator('.tet-speech-rate').click();
+  await page.evaluate(()=>lastMenu.items.find(i=>i.title==='1.5×').run());await page.waitForTimeout(150);
+  assert.equal(await page.evaluate(()=>spoken.at(-1).rate),1.5);
+  assert.equal(await page.evaluate(()=>fixture.plugin.settings.speechRate),1.5);
+  const progress=await page.evaluate(()=>fixture.plugin.settings.speechProgress['笔记/验收.md']);
+  assert.equal(progress.t,'第三句别名。');assert.equal(progress.d,false);
+  // Closing removes the bar and highlight; the button resumes at the saved sentence.
+  await page.locator('.tet-speech-btn[aria-label="关闭听书"]').click();
+  assert.equal(await page.locator('.tet-speech-bar').count(),0);assert.equal(await page.locator('.tet-speaking').count(),0);
+  await action.click();await page.waitForTimeout(150);
+  assert.equal((await said()).at(-1),'第三句别名。');
+  await endSentence();
+  assert.equal(await page.locator('.tet-speech-bar').getAttribute('data-state'),'ended');
+  assert.equal(await page.evaluate(()=>fixture.plugin.settings.speechProgress['笔记/验收.md'].d),true);
+  assert.equal(await page.evaluate(()=>fixture.text()),'新增一段。\n\n'+input);
+  // A selection is read on its own and does not move the saved position.
+  await page.locator('.tet-speech-btn[aria-label="关闭听书"]').click();
+  await page.evaluate(()=>{const from=fixture.cm.state.doc.toString().indexOf('第一句');fixture.cm.dispatch({selection:{anchor:from,head:from+3}});});
+  await action.click();await page.waitForTimeout(150);
+  assert.equal((await said()).at(-1),'第一句');
+  await endSentence();
+  assert.equal(await page.locator('.tet-speech-bar').getAttribute('data-state'),'ended');
+  assert.equal(await page.evaluate(()=>fixture.plugin.settings.speechProgress['笔记/验收.md'].d),true);
+  // Unloading stops speech and removes the header button.
+  await page.evaluate(()=>fixture.plugin.onunload());
+  assert.equal(await action.count(),0);assert.equal(await page.locator('.tet-speech-bar').count(),0);
+});
+test('listening in Reading view highlights the rendered sentence and settings list Chinese voices',async()=>{
+  await setup('第一段。\n\n| 层次 | 职责 |\n| --- | --- |\n| 甲 | 乙 |\n\n结尾。','reading');await fakeSpeech();
+  await page.locator('.view-action[data-icon=headphones]').click();await page.waitForTimeout(120);
+  const painted=()=>page.evaluate(()=>{const h=CSS.highlights.get('tet-speaking');return h?[...h][0].toString():null;});
+  assert.equal(await painted(),'第一段。');
+  await endSentence();
+  assert.equal((await said()).at(-1),'层次 ， 职责');
+  assert.equal((await painted()).replace(/\s/g,''),'层次职责');
+  await endSentence();await endSentence();await endSentence();
+  assert.equal(await painted(),null);
+  await page.evaluate(()=>{fixture.plugin.tab.display();document.body.appendChild(fixture.plugin.tab.containerEl);});
+  const options=await page.locator('select').nth(1).evaluate(s=>[...s.options].map(o=>o.textContent));
+  assert.deepEqual(options,['自动（优先中文）','中文甲','中文乙']);
+  assert.match(await page.getByText(/已记住 \d+ 篇笔记的位置/).textContent(),/已记住 1 篇/);
+  await page.evaluate(()=>fixture.plugin.tab.containerEl.remove());
+});
+// No system engine (as in Obsidian for Android): automatic mode reads Baidu audio.
+async function fakeOnline() {
+  await page.evaluate(()=>{
+    Object.defineProperty(window,'speechSynthesis',{value:undefined,configurable:true});
+    window.requests=[];window.audios=[];window.onlineStatus=200;
+    window.requestUrlMock=async options=>{requests.push(decodeURIComponent(new URL(options.url).searchParams.get('text')));
+      return onlineStatus===200 ? {status:200,headers:{'Content-Type':'audio/mpeg'},arrayBuffer:new Uint8Array([255,251,0,0]).buffer} : {status:onlineStatus,headers:{'content-type':'text/html'},arrayBuffer:new ArrayBuffer(0)};};
+    window.Audio=class{constructor(src){this.src=src;this.paused=true;this.playbackRate=1;}play(){this.paused=false;audios.push(this);return Promise.resolve();}pause(){this.paused=true;}end(){this.onended?.();}};
+  });
+}
+test('without a system voice, listening reads Baidu audio with prefetch, mid-sentence pause and instant speed',async()=>{
+  await setup('第一句。第二句。第三句。第四句。');await fakeOnline();
+  await page.locator('.view-action[data-icon=headphones]').click();await page.waitForTimeout(120);
+  // The current sentence plus the next two are requested once each.
+  assert.deepEqual(await page.evaluate(()=>requests),['第一句。','第二句。','第三句。']);
+  assert.equal(await page.evaluate(()=>audios.length),1);
+  assert.equal(await page.locator('.tet-speaking').textContent(),'第一句。');
+  // Speed changes the playing audio; nothing is downloaded again.
+  await page.locator('.tet-speech-rate').click();
+  await page.evaluate(()=>lastMenu.items.find(i=>i.title==='1.25×').run());await page.waitForTimeout(80);
+  assert.equal(await page.evaluate(()=>audios.at(-1).playbackRate),1.25);
+  // Pause keeps the position inside the sentence: resume plays the same audio.
+  await page.locator('.tet-speech-main').click();await page.waitForTimeout(50);
+  assert.equal(await page.evaluate(()=>audios.at(-1).paused),true);
+  await page.locator('.tet-speech-main').click();await page.waitForTimeout(50);
+  assert.equal(await page.evaluate(()=>audios.length===2 && audios[0]===audios[1] && !audios[1].paused),true);
+  assert.equal(await page.evaluate(()=>requests.length),3);
+  await page.evaluate(()=>audios.at(-1).end());await page.waitForTimeout(120);
+  assert.equal(await page.locator('.tet-speaking').textContent(),'第二句。');
+  assert.equal(await page.evaluate(()=>requests.at(-1)),'第四句。');
+  // A broken service stops with an explanation instead of hanging.
+  await page.evaluate(()=>{onlineStatus=500;fixture.plugin.speech.cache.clear();audios.at(-1).end();});await page.waitForTimeout(150);
+  assert.equal(await page.locator('.tet-speech-bar').count(),0);
+  assert.ok((await page.evaluate(()=>fixture.notices.at(-1))).includes('百度朗读暂时用不了'));
+  assert.equal(await page.evaluate(()=>fixture.plugin.speech.cache.size),0);
+  // Settings offer the reading source; system voices are hidden without a system engine.
+  await page.evaluate(()=>{fixture.plugin.tab.display();document.body.appendChild(fixture.plugin.tab.containerEl);});
+  assert.deepEqual(await page.locator('select').first().evaluate(s=>[...s.options].map(o=>o.textContent)),['自动（推荐）','系统声音（离线）','百度朗读（联网）']);
+  assert.equal(await page.getByText('系统声音',{exact:true}).count(),0);
+  await page.evaluate(()=>fixture.plugin.tab.containerEl.remove());
+  // Choosing the system engine explicitly on such a device explains why it cannot read.
+  await page.evaluate(()=>{fixture.plugin.settings.speechEngine='system';});
+  await page.locator('.view-action[data-icon=headphones]').click();
+  assert.ok((await page.evaluate(()=>fixture.notices.at(-1))).includes('没有提供系统朗读'));
+  await page.evaluate(()=>{fixture.plugin.settings.speechEngine='auto';delete window.requestUrlMock;});
+});
