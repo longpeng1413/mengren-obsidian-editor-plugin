@@ -2,6 +2,7 @@ import { ViewPlugin, Decoration } from '@codemirror/view';
 import { RangeSetBuilder, EditorState } from '@codemirror/state';
 import { editorInfoField } from 'obsidian';
 import { classify, blankSpacing, paintedGaps } from './markdown.mjs';
+import { HIGHLIGHTS } from './speech.mjs';
 
 function layoutExtension(plugin) {
   const decorations = ViewPlugin.fromClass(class {
@@ -222,6 +223,9 @@ function applyLayout(doc, settings) {
     vars['--tet-image-padding']=settings.imagePadding+'em';
     vars['--tet-table-padding']=settings.tablePadding+'em';
   }
+  // Read-aloud highlight preset; the theme-accent preset leaves it to CSS.
+  const speechColor=HIGHLIGHTS[settings.speechHighlight]?.[1];
+  if(speechColor) vars['--tet-speech-highlight']=speechColor;
   let style = doc.getElementById('tet-layout-vars');
   if (!style) { style = doc.createElement('style'); style.id = 'tet-layout-vars'; doc.head.appendChild(style); }
   // Also reaches Obsidian's temporary print tree; settings travel in a style

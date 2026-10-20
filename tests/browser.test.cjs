@@ -588,7 +588,7 @@ async function fakeSpeech() {
 const said=()=>page.evaluate(()=>spoken.map(s=>s.text));
 const endSentence=async()=>{await page.evaluate(()=>speechSynthesis.end());await page.waitForTimeout(120);};
 test('listening reads sentences in order, highlights them, follows edits and remembers the position',async()=>{
-  const input='# 标题\n\n第一句。第二句！\n\n```\n代码\n```\n\n第三句[[笔记|别名]]。';
+  const input='# 标题\n\n第一句。第二句！\n\n```js\n代码\n```\n\n第三句[[笔记|别名]]。';
   await setup(input);await fakeSpeech();
   const action=page.locator('.view-action[data-icon=headphones]');
   assert.equal(await action.count(),1);
@@ -700,4 +700,74 @@ test('without a system voice, listening reads Baidu audio with prefetch, mid-sen
   await page.locator('.view-action[data-icon=headphones]').click();
   assert.ok((await page.evaluate(()=>fixture.notices.at(-1))).includes('没有提供系统朗读'));
   await page.evaluate(()=>{fixture.plugin.settings.speechEngine='auto';delete window.requestUrlMock;});
+});
+
+test('listening highlight colour, hand-scroll following and double-tap pause / resume',async()=>{
+  await setup('第一句是一句比较长的话。第二句。第三句。');await fakeSpeech();
+  await page.locator('.view-action[data-icon=headphones]').click();await page.waitForTimeout(120);
+  // Preset colours reach the editor highlight through the layout variables.
+  const bg=()=>page.locator('.tet-speaking').evaluate(n=>getComputedStyle(n).backgroundColor);
+  assert.equal(await bg(),'rgba(255, 208, 0, 0.45)');
+  await page.evaluate(async()=>{fixture.plugin.settings.speechHighlight='blue';await fixture.plugin.saveSettings();});
+  assert.equal(await bg(),'rgba(64, 156, 255, 0.42)');
+  // Touches: a tap that jitters a few pixels is not a scroll; a real drag is.
+  const touch=(selector,dx,dy)=>page.evaluate(([sel,dx,dy])=>{
+    const el=document.querySelector(sel),r=el.getBoundingClientRect(),x=r.left+5,y=r.top+5;
+    const fire=(type,px,py)=>{const e=new Event(type,{bubbles:true});e.touches=[{clientX:px,clientY:py}];el.dispatchEvent(e);};
+    fire('touchstart',x,y);fire('touchmove',x+dx,y+dy);
+  },[selector,dx,dy]);
+  const follow=()=>page.locator('.tet-speech-bar').getAttribute('data-follow');
+  await touch('.tet-speech-main',3,4);assert.equal(await follow(),'true');
+  await touch('.cm-content',2,3);assert.equal(await follow(),'true');
+  await touch('.cm-content',0,40);assert.equal(await follow(),'false');
+  // After a quiet pause the next sentence follows again by itself.
+  await page.evaluate(()=>{fixture.plugin.speech.session.handScroll=Date.now()-7000;});
+  await endSentence();
+  assert.equal(await follow(),'true');
+  assert.equal(await page.locator('.tet-speaking').textContent(),'第二句。');
+  // Double-clicking the highlighted sentence pauses and resumes; no word stays selected.
+  const box=await page.locator('.tet-speaking').boundingBox();
+  const state=()=>page.locator('.tet-speech-bar').getAttribute('data-state');
+  await page.mouse.dblclick(box.x+box.width/2,box.y+box.height/2);await page.waitForTimeout(80);
+  assert.equal(await state(),'paused');
+  assert.equal(await page.evaluate(()=>fixture.cm.state.selection.main.empty),true);
+  const count=(await said()).length;
+  await page.mouse.dblclick(box.x+box.width/2,box.y+box.height/2);await page.waitForTimeout(150);
+  assert.equal(await state(),'playing');
+  assert.equal((await said()).length,count+1);assert.equal((await said()).at(-1),'第二句。');
+  // Double-clicking other text does nothing to playback.
+  const other=await page.evaluate(()=>{const c=fixture.cm.coordsAtPos(fixture.cm.state.doc.toString().indexOf('第三句')+1);return {x:c.left+2,y:(c.top+c.bottom)/2};});
+  await page.mouse.dblclick(other.x,other.y);await page.waitForTimeout(80);
+  assert.equal(await state(),'playing');
+  await page.evaluate(async()=>{fixture.plugin.settings.speechHighlight='yellow';await fixture.plugin.saveSettings();fixture.plugin.speech.stop();});
+});
+test('double-clicking the highlighted sentence in Reading view pauses listening',async()=>{
+  await setup('第一句。第二句。','reading');await fakeSpeech();
+  await page.locator('.view-action[data-icon=headphones]').click();await page.waitForTimeout(120);
+  const rect=await page.evaluate(()=>{const r=[...CSS.highlights.get('tet-speaking')][0].getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};});
+  await page.mouse.dblclick(rect.x,rect.y);await page.waitForTimeout(80);
+  assert.equal(await page.locator('.tet-speech-bar').getAttribute('data-state'),'paused');
+  assert.equal(await page.evaluate(()=>getSelection().isCollapsed),true);
+  await page.evaluate(()=>fixture.plugin.speech.stop());
+});
+
+test('in the editor, sentences inside a drawn table widget are highlighted on the drawn text',async()=>{
+  await setup('前文。\n\n| 层次 | 职责 |\n| --- | --- |\n| 甲 | 乙 |\n\n后文。');await fakeSpeech();
+  await page.locator('.view-action[data-icon=headphones]').click();await page.waitForTimeout(120);
+  const painted=()=>page.evaluate(()=>{const h=CSS.highlights.get('tet-speaking');return h?[...h][0].toString().replace(/\s/g,''):null;});
+  assert.equal(await page.locator('.tet-speaking').textContent(),'前文。');
+  assert.equal(await painted(),null);
+  await endSentence();
+  assert.equal((await said()).at(-1),'层次 ， 职责');
+  assert.equal(await painted(),'层次职责');
+  assert.ok(await page.evaluate(()=>!![...CSS.highlights.get('tet-speaking')][0].startContainer.parentElement.closest('.cm-table-widget')));
+  // Double-tapping the drawn sentence pauses as well.
+  const rect=await page.evaluate(()=>{const r=[...CSS.highlights.get('tet-speaking')][0].getClientRects()[0];return {x:r.left+r.width/2,y:r.top+r.height/2};});
+  await page.mouse.dblclick(rect.x,rect.y);await page.waitForTimeout(80);
+  assert.equal(await page.locator('.tet-speech-bar').getAttribute('data-state'),'paused');
+  await page.locator('.tet-speech-main').click();await page.waitForTimeout(150);
+  await endSentence();await endSentence();
+  assert.equal(await page.locator('.tet-speaking').textContent(),'后文。');
+  assert.equal(await painted(),null);
+  await page.evaluate(()=>fixture.plugin.speech.stop());
 });

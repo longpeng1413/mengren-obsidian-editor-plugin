@@ -310,5 +310,10 @@ test('long read-aloud sentences split at a soft break, never mid-word when avoid
   assert.equal(s.map(x=>x.text).join('').replace(/，/g,''),text.replace(/[，]/g,''));
   // Closing quotes stay with their sentence; unclosed fences silence the rest.
   assert.deepEqual(speechSegments('他说：“好。”然后走了。').map(x=>x.text),['他说：“好。”','然后走了。']);
-  assert.deepEqual(speechSegments('前文\n```\n代码').map(x=>x.text),['前文']);
+  assert.deepEqual(speechSegments('前文\n```js\n代码').map(x=>x.text),['前文']);
+  // Plain-text code blocks are read line by line, without tree-drawing glyphs.
+  const tree='```text\n02、规则体系\n├── 00、规则体系说明\n└── 02、课程专用规则\n```\n\n```python\nprint(1)\n```\n\n```\n无语言\n```\n\n> ```md\n> 引用里的块\n> ```';
+  const read=speechSegments(tree);
+  assert.deepEqual(read.map(x=>x.text),['02、规则体系','00、规则体系说明','02、课程专用规则','无语言','引用里的块']);
+  for(const x of read) assert.equal(tree.slice(x.from,x.to),x.text);
 });

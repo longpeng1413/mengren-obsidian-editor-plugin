@@ -42,7 +42,7 @@ Apply text colors, background highlights and underlines from the editor context 
 
 ### Listening (read aloud)
 
-Select the headphones button at the top right of a note, or run "听书" from the command palette. With text selected, only the selection is read; otherwise reading continues where you left off in that note, or starts at the cursor (in Reading view, at the top of the screen). A floating player offers pause and resume, previous and next sentence, speed from 0.75x to 2x, voice choice, "read from the start" and "read from here". The sentence being read is highlighted in Live Preview and Reading view, and the note scrolls along with it; scrolling by hand stops the following until you tap the locate button. Front matter, code blocks, math, comments, URLs and embeds are skipped, and links are read by their visible text.
+Select the headphones button at the top right of a note, or run "听书" from the command palette. With text selected, only the selection is read; otherwise reading continues where you left off in that note, or starts at the cursor (in Reading view, at the top of the screen). A floating player offers pause and resume, previous and next sentence, speed from 0.75x to 2x, voice choice, "read from the start" and "read from here". The sentence being read is highlighted in Live Preview and Reading view in a color you choose, and the note scrolls along with it; scrolling by hand pauses the following, which resumes after six quiet seconds or when you tap the locate button. Double-click (double-tap on phones) the highlighted sentence to pause, and again to resume. Front matter, program code blocks (js, python and so on), math, comments, URLs and embeds are skipped, and links are read by their visible text. Plain-text code blocks (no language, text or markdown) are read line by line without tree-drawing glyphs.
 
 Choose the reading source in settings. **System voice** uses your device's speech engine through the standard Web Speech API: offline and free, nothing leaves the device; on Windows the built-in Chinese voices are Huihui, Kangkang and Yaoyao. **Baidu** uses the read-aloud audio of Baidu Translate: free and without an account, but it needs the internet and **each sentence being read is sent to fanyi.baidu.com**; it is not an officially offered service and can stop working if Baidu changes it, in which case the plugin says so. **Automatic** (default) uses the system voice when the device has one, and Baidu otherwise, for example in Obsidian for Android, which provides no system speech engine. Downloaded audio is kept in memory only, at most six sentences, and cleared when listening stops. The reading position of up to 200 notes is remembered for 180 days and can be cleared in settings.
 
@@ -104,9 +104,11 @@ Please report bugs with anonymized minimal Markdown, your Obsidian and plugin ve
 
 > **Mengren Editor（猛人编辑器）**，原名「猛人obsidian编辑插件」。0.1.8 起为符合 Obsidian 社区目录规则（名称不能含 “Obsidian”），显示名改为 Mengren Editor；内部 ID `trader-editor-tools` 不变，已有设置、快捷键和备份不受影响。
 
-版本 **0.1.11**，MIT 开源。完整可安装插件，不需要安装 Node.js，不需要编译。优先支持 Windows / Obsidian 1.13–1.14 / Live Preview；手机可安装，但尚未真机验收。
+版本 **0.1.12**，MIT 开源。完整可安装插件，不需要安装 Node.js，不需要编译。优先支持 Windows / Obsidian 1.13–1.14 / Live Preview；手机可安装，但尚未真机验收。
 
 [下载发布版](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/releases/latest) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md) · [架构](docs/ARCHITECTURE.md) · [测试记录](TESTING.md) · [问题反馈](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/issues)
+
+0.1.12 听书改进：高亮颜色可选（默认黄色，更醒目）；双击正在读的句子暂停 / 继续；手机上自动跟着滚动；编辑模式下表格、提示框里的句子也有高亮；纯文字代码块也会朗读。
 
 0.1.11 新增 **听书**：笔记右上角耳机按钮朗读笔记，句子高亮并跟随滚动，可调语速、记住读到的位置。电脑默认用离线的系统声音；手机（Obsidian 安卓版没有系统朗读）自动用百度朗读（联网）。
 
@@ -267,8 +269,9 @@ Markdown 原生格式负责语义，插件只添加视觉层。以粗体同时�
 - 选中了文字：只读选中的部分。
 - 没选文字：接着这篇笔记上次读到的地方；没有记录时从光标处开始（阅读模式从当前屏幕顶部开始）。
 - 底部播放条：暂停 / 继续、上一句 / 下一句、语速（0.75–2 倍）、选声音；“更多”里可以从头读、从光标处（或当前屏幕）读、打开听书设置。
-- 正在读的句子会高亮，页面自动跟着滚动；自己滚动页面后停止跟随，点定位按钮回到朗读处。
-- 跳过属性区、代码块、公式、注释、网址和图片等嵌入；链接只读显示的文字；Tab 知识行、表格文字会读。
+- 正在读的句子会高亮（颜色可在设置里选），页面自动跟着滚动；自己滑动页面后暂停跟随，停手 6 秒自动恢复，也可以点定位按钮马上回到朗读处。
+- 双击正在读的高亮句子即可暂停，再双击继续（手机上双击屏幕）。
+- 跳过属性区、编程语言代码块（js、python 等）、公式、注释、网址和图片等嵌入；链接只读显示的文字；Tab 知识行、表格文字、纯文字代码块（没写语言或 text / md）会读，目录树线条 ├── └── 不读。
 - 一边听一边改笔记也可以，会从改动后对应的位置接着读。
 
 **朗读来源**在设置里选：

@@ -12,6 +12,8 @@ const HR = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
 const TABLE_RULE = /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$/;
 const URL = /^(?:https?:\/\/|www\.)[\x21-\x7e]+/;
 const TAG = /^<\/?[A-Za-z][^<>\n]*>/;
+const PLAIN_FENCE = /^(?:|text|txt|plain|plaintext|md|markdown)$/i;
+const BOX_DRAWING = /[─-▟]/;
 
 /** Offsets [start, end) restrict reading to a selection or "from here"; the
  * whole note is still scanned so code fences and comments are recognised. */
@@ -35,9 +37,19 @@ function speechSegments(source, {start=0, end=source.length}={}) {
     if (frontmatter) { if (n > 0 && /^(?:---|\.\.\.)\s*$/.test(text)) frontmatter = false; continue; }
     if (state.comment) { inline(source, from, to, state, emit, false); flush(); continue; }
     const body = text.replace(/^(?:\s*>\s?)+/, '');
-    if (fence) { if (new RegExp('^\\s*' + fence[0] + '{' + fence.length + ',}\\s*$').test(body)) fence = null; continue; }
-    const open = /^\s*(`{3,}|~{3,})/.exec(body);
-    if (open) { fence = open[1]; continue; }
+    if (fence) {
+      if (new RegExp('^\\s*' + fence.mark[0] + '{' + fence.mark.length + ',}\\s*$').test(body)) { fence = null; continue; }
+      // Plain-text blocks (no language, text, markdown) are read line by line,
+      // literally, without tree-drawing glyphs; program code stays silent.
+      if (fence.read) {
+        const start = from + (text.length - body.length);
+        for (let k = start; k < to; k++) if (!BOX_DRAWING.test(source[k])) emit(source[k], k);
+        flush();
+      }
+      continue;
+    }
+    const open = /^\s*(`{3,}|~{3,})\s*([^\s`]*)/.exec(body);
+    if (open) { fence = {mark: open[1], read: PLAIN_FENCE.test(open[2])}; continue; }
     if (math) { if (/\$\$\s*$/.test(body)) math = false; continue; }
     if (/^\s*\$\$/.test(body)) { if (!/^\s*\$\$.*\$\$\s*$/.test(body)) math = true; continue; }
     if (HR.test(body) || TABLE_RULE.test(body)) { flush(); continue; }

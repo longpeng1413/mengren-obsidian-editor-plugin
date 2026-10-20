@@ -11,6 +11,24 @@ const UNAVAILABLE = '这台设备上的 Obsidian 没有提供系统朗读功能�
 const ONLINE_FAIL = '百度朗读暂时用不了：网络不通，或百度改了接口。可以稍后再试，或在听书设置里改用系统声音。';
 const ENGINES = {auto: '自动（推荐）', system: '系统声音（离线）', baidu: '百度朗读（联网）'};
 const CACHE_LIMIT = 6;
+const RESUME_FOLLOW = 6000;
+// Highlight presets: [label, colour]. Strong enough to find on light and dark
+// themes; 'accent' follows the theme (CSS fallback, resolved per element).
+const HIGHLIGHTS = {
+  yellow: ['黄色', 'rgba(255, 208, 0, .45)'],
+  green: ['绿色', 'rgba(46, 204, 113, .42)'],
+  blue: ['蓝色', 'rgba(64, 156, 255, .42)'],
+  orange: ['橙色', 'rgba(255, 140, 0, .45)'],
+  purple: ['紫色', 'rgba(170, 102, 255, .45)'],
+  accent: ['跟随主题强调色', null],
+};
+function scrollParent(el) {
+  for (let node = el; node && node.nodeType === 1; node = node.parentElement) {
+    const style = node.ownerDocument.defaultView.getComputedStyle(node);
+    if (/(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight + 1) return node;
+  }
+  return null;
+}
 const SILENT = '系统朗读没有发出声音：这台设备的 Obsidian 可能调用不到朗读引擎。安卓手机请确认系统设置里已启用“文字转语音”引擎，或改用系统“随选朗读”。';
 
 // The sentence being read, kept in the editor state so it follows edits.
@@ -181,11 +199,32 @@ class SpeechReader {
     const session = this.session = {view, path: file.path, text, segments, index, state: 'playing', selection: !!selection,
       end: selection ? selection[1] : text.length, follow: true, programmatic: 0, cleanup: []};
     this.mount(session);
-    const away = () => { if (Date.now() - session.programmatic > 500 && session.follow) { session.follow = false; this.render(); } };
-    for (const type of ['wheel', 'touchmove']) {
-      view.contentEl.addEventListener(type, away, {passive: true});
-      session.cleanup.push(() => view.contentEl.removeEventListener(type, away));
-    }
+    // Only a real hand scroll stops following. Taps on the player jitter a few
+    // pixels on phones and must not count; following resumes after a quiet pause.
+    let touch = null;
+    const handScroll = () => { session.handScroll = Date.now(); if (session.follow) { session.follow = false; this.render(); } };
+    const onPlayer = event => !!event.target?.closest?.('.tet-speech-bar');
+    const listen = (type, fn) => { view.contentEl.addEventListener(type, fn, {passive: true}); session.cleanup.push(() => view.contentEl.removeEventListener(type, fn)); };
+    listen('wheel', event => { if (!onPlayer(event) && Date.now() - session.programmatic > 500) handScroll(); });
+    listen('touchstart', event => { const t = event.touches?.[0]; touch = t && !onPlayer(event) ? {x: t.clientX, y: t.clientY, moved: false} : null; });
+    listen('touchmove', event => {
+      const t = event.touches?.[0];
+      if (!touch || !t) return;
+      if (touch.moved || Math.hypot(t.clientX - touch.x, t.clientY - touch.y) > 12) { touch.moved = true; handScroll(); }
+    });
+    // Double-tap the sentence being read to pause / resume. Counted from two
+    // clicks, because phones do not reliably send dblclick.
+    let lastTap = null;
+    listen('click', event => {
+      if (onPlayer(event)) return;
+      const now = Date.now(), here = {x: event.clientX, y: event.clientY};
+      const pair = !!lastTap && now - lastTap.t < 350 && Math.hypot(here.x - lastTap.x, here.y - lastTap.y) < 24;
+      lastTap = pair ? null : {...here, t: now};
+      if (!pair || !this.onSentence(session, here.x, here.y)) return;
+      this.toggle();
+      // The editor finishes its own double-click word selection after this click.
+      window.setTimeout(() => this.dropWordSelection(session), 30);
+    });
     this.speak();
   }
 
@@ -399,19 +438,37 @@ class SpeechReader {
   highlight() {
     const s = this.session, segment = s?.segments[s.index];
     if (!segment) return;
+    if (!s.follow && s.handScroll && Date.now() - s.handScroll > RESUME_FOLLOW) { s.follow = true; this.render(); }
     const cm = s.view.editor?.cm;
     s.shown = s.index; s.mode = s.view.getMode?.();
     // The editor keeps the range even in Reading view, so edits remap it.
     cm?.dispatch({effects: setSpeech.of({from: segment.from, to: segment.to, end: s.end, show: true})});
-    if (s.view.getMode?.() === 'preview') this.highlightPreview(s, segment, 0);
-    else { this.paint(s, null); if (cm && s.follow) this.revealEditor(s, cm, segment); }
+    if (s.view.getMode?.() === 'preview') { this.highlightPreview(s, segment, 0); return; }
+    // Tables and Callouts are drawn as widgets in the editor; their source (and
+    // so the mark) is hidden, so highlight the drawn text inside the widget.
+    const widget = cm ? this.widgetAt(cm, segment) : null;
+    const range = widget ? findRendered(widget, segment.text) : null;
+    this.paint(s, range);
+    if (cm && s.follow) { if (range) this.revealRange(s, range); else this.revealEditor(s, cm, segment); }
+  }
+  widgetAt(cm, segment) {
+    for (const el of cm.contentDOM.children) {
+      if (el.classList.contains('cm-line')) continue;
+      let block;
+      try { block = cm.lineBlockAt(cm.posAtDOM(el)); } catch { continue; }
+      if (block.from <= segment.from && segment.from <= block.to) return el;
+    }
+    return null;
   }
   revealEditor(s, cm, segment) {
     const rect = cm.coordsAtPos(segment.from), box = cm.scrollDOM.getBoundingClientRect();
-    if (rect && rect.top >= box.top + 40 && rect.bottom <= box.bottom - 90) return;
+    if (rect && rect.top >= box.top + 40 && rect.bottom <= box.bottom - this.playerGap(s)) return;
     s.programmatic = Date.now();
-    cm.dispatch({effects: EditorView.scrollIntoView(segment.from, {y: 'center'})});
+    // Put the sentence a third of the way down, well clear of the player.
+    cm.dispatch({effects: EditorView.scrollIntoView(segment.from, {y: 'start', yMargin: Math.round(box.height / 3)})});
   }
+  /** Space the floating player covers at the bottom of the note, plus a margin. */
+  playerGap(s) { return (s.bar?.offsetHeight || 48) + 48; }
   highlightPreview(s, segment, attempt) {
     const preview = s.view.previewMode, line = lineOf(s.text, segment.from);
     const sections = preview?.renderer?.sections;
@@ -431,14 +488,32 @@ class SpeechReader {
     }
   }
   revealRange(s, range) {
-    const scroller = s.view.previewMode?.containerEl;
+    // The element that actually scrolls differs between desktop and mobile
+    // layouts: use the nearest scrollable ancestor of the sentence.
+    const scroller = scrollParent(range.startContainer.parentElement) || s.view.previewMode?.containerEl;
     if (!scroller) return;
     const rect = range.getBoundingClientRect(), box = scroller.getBoundingClientRect();
-    if (rect.top >= box.top + 40 && rect.bottom <= box.bottom - 90) return;
+    if (rect.top >= box.top + 40 && rect.bottom <= box.bottom - this.playerGap(s)) return;
     s.programmatic = Date.now();
-    scroller.scrollBy({top: rect.top - box.top - box.height * 0.35});
+    scroller.scrollBy({top: rect.top - box.top - box.height / 3});
+  }
+  /** Is the point on the highlighted sentence (Reading range or editor range)? */
+  onSentence(s, x, y) {
+    if (s.range?.startContainer.isConnected && [...s.range.getClientRects()].some(r => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom)) return true;
+    if (s.view.getMode?.() === 'preview') return false;
+    const cm = s.view.editor?.cm, value = cm?.state.field(speechField, false);
+    if (!value?.show) return false;
+    const pos = cm.posAtCoords({x, y});
+    return pos !== null && pos >= value.from && pos <= value.to;
+  }
+  /** A double-click also selects a word; give the reader a clean caret back. */
+  dropWordSelection(s) {
+    if (s.view.getMode?.() === 'preview') { (s.view.containerEl.win || window).getSelection()?.removeAllRanges(); return; }
+    const cm = s.view.editor?.cm, main = cm?.state.selection.main;
+    if (main && !main.empty) cm.dispatch({selection: {anchor: main.head}});
   }
   paint(s, range) {
+    s.range = range;
     const win = s.view.containerEl.win || window, registry = win.CSS?.highlights;
     if (!registry || !win.Highlight) return;
     if (range) registry.set('tet-speaking', new win.Highlight(range)); else registry.delete('tet-speaking');
@@ -500,7 +575,7 @@ class SpeechReader {
       next: button('skip-forward', '下一句', () => this.step(1)),
       rate: button('', '语速', el => this.rateMenu(el), 'tet-speech-rate'),
       voice: button('volume-2', '声音', el => void this.voiceMenu(el)),
-      locate: button('locate-fixed', '回到朗读位置', () => { s.follow = true; this.highlight(); this.render(); }, 'tet-speech-locate'),
+      locate: button('locate-fixed', '回到朗读位置', () => { s.follow = true; s.handScroll = 0; this.highlight(); this.render(); }, 'tet-speech-locate'),
       more: button('more-horizontal', '更多', el => this.moreMenu(el)),
       close: button('x', '关闭听书', () => this.stop()),
       progress: bar.createDiv({cls: 'tet-speech-progress'}),
@@ -558,4 +633,4 @@ class SpeechReader {
   }
 }
 
-export { SpeechReader, speechExtension, pruneProgress, findRendered, RATES, ENGINES };
+export { SpeechReader, speechExtension, pruneProgress, findRendered, RATES, ENGINES, HIGHLIGHTS };

@@ -4,7 +4,7 @@ import { captureSelection, commitStyle, HEX } from './text-style.mjs';
 import { textStyleExtension } from './text-style-view.mjs';
 import { layoutExtension, applyLayout, decorateTabKnowledge, refreshTabKnowledge, decorateExtraBlankLines, refreshExtraBlankLines } from './layout.mjs';
 import { ImageResizeManager, cleanTarget } from './image-resize.mjs';
-import { SpeechReader, speechExtension, pruneProgress, RATES, ENGINES } from './speech.mjs';
+import { SpeechReader, speechExtension, pruneProgress, RATES, ENGINES, HIGHLIGHTS } from './speech.mjs';
 
 const DEFAULTS = {
   layoutVersion:2, layoutEnabled:true, lineHeight:1.62, blockPadding:0.28,
@@ -14,7 +14,7 @@ const DEFAULTS = {
   tabKnowledgeLines:true,
   preserveExtraBlankLines:true,
   backupEnabled:true, imageResize:true, readingResize:true, freeResize:false, maxImageWidth:4096,
-  speechRemember:true, speechRate:1, speechVoice:'', speechEngine:'auto', speechProgress:{},
+  speechRemember:true, speechRate:1, speechVoice:'', speechEngine:'auto', speechHighlight:'yellow', speechProgress:{},
   colors:[
     {name:'风险红',text:'#d64545',background:'#ffd9dc'},
     {name:'重点橙',text:'#cb6c13',background:'#ffe1bd'},
@@ -44,6 +44,7 @@ function loadValidated(saved) {
   if (RATES.includes(saved.speechRate)) result.speechRate = saved.speechRate;
   if (typeof saved.speechVoice === 'string') result.speechVoice = saved.speechVoice.slice(0,200);
   if (Object.prototype.hasOwnProperty.call(ENGINES,saved.speechEngine)) result.speechEngine = saved.speechEngine;
+  if (Object.prototype.hasOwnProperty.call(HIGHLIGHTS,saved.speechHighlight)) result.speechHighlight = saved.speechHighlight;
   result.speechProgress = pruneProgress(saved.speechProgress);
   return result;
 }
@@ -200,6 +201,11 @@ class TraderSettings extends PluginSettingTab {
       for(const rate of RATES) d.addOption(String(rate),`${rate}×`);
       d.setValue(String(s.speechRate)).onChange(value=>void speech.setRate(Number(value)));
     }).addButton(b=>b.setButtonText('试听').onClick(()=>void speech.preview()));
+    new Setting(el).setName('朗读高亮颜色').setDesc('正在读的句子铺的底色，编辑模式和阅读模式一致。双击这句话可以暂停 / 继续。')
+      .addDropdown(d=>{
+        for(const [key,[label]] of Object.entries(HIGHLIGHTS)) d.addOption(key,label);
+        d.setValue(s.speechHighlight).onChange(async value=>{s.speechHighlight=value;await p.saveSettings();});
+      });
     new Setting(el).setName('记住每篇笔记读到的位置').setDesc('下次点耳机按钮时接着读；读完一篇后从头开始。')
       .addToggle(t=>t.setValue(s.speechRemember).onChange(async value=>{s.speechRemember=value;await p.saveData(s);}));
     const count=Object.keys(s.speechProgress).length;
