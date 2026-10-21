@@ -19,14 +19,23 @@ const files = ['manifest.json', 'main.js', 'styles.css'];
 execFileSync(process.execPath, [path.join(root, 'scripts/build.cjs')], {stdio: 'inherit'});
 
 // Runs an async snippet inside Obsidian through its CLI. The CLI only returns
-// synchronous values, so the result is parked on window and polled.
+// synchronous values, so the result is parked on window and polled. Only the
+// "=> value" line is the answer; app log lines may come first, and a call can
+// occasionally return nothing, which means "ask again", not failure.
 function obsidian(vault, body) {
-  const run = code => execFileSync(config.obsidian, ['vault=' + vault, 'eval', 'code=' + code], {encoding: 'utf8', timeout: 60000}).trim().replace(/^=> /, '');
+  const run = code => {
+    const out = execFileSync(config.obsidian, ['vault=' + vault, 'eval', 'code=' + code], {encoding: 'utf8', timeout: 60000});
+    const line = out.split(/\r?\n/).reverse().find(l => l.startsWith('=> '));
+    return line ? line.slice(3).trim() : '';
+  };
   run(`window.__tetDeploy='pending';Promise.resolve(${body}).then(v=>window.__tetDeploy=v,e=>window.__tetDeploy='ERROR '+(e&&e.message||e));0`);
   const deadline = Date.now() + 60000;
   for (;;) {
     const out = run('window.__tetDeploy');
-    if (out !== 'pending' || Date.now() > deadline) { run('delete window.__tetDeploy'); return out; }
+    if ((out && out !== 'pending') || Date.now() > deadline) {
+      for (let i = 0; i < 3 && run('delete window.__tetDeploy;typeof window.__tetDeploy') !== 'undefined'; i++);
+      return out || 'no answer from Obsidian';
+    }
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 500);
   }
 }
