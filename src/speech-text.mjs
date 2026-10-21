@@ -12,7 +12,8 @@ const HR = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
 const TABLE_RULE = /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$/;
 const URL = /^(?:https?:\/\/|www\.)[\x21-\x7e]+/;
 const TAG = /^<\/?[A-Za-z][^<>\n]*>/;
-const PLAIN_FENCE = /^(?:|text|txt|plain|plaintext|md|markdown)$/i;
+const TIMESTAMP = /^\s*(?:\d{1,2}:)?\d{1,2}:\d{2}(?:[.,]\d+)?\s*$/;
+const PLAIN_FENCE =/^(?:|text|txt|plain|plaintext|md|markdown)$/i;
 const BOX_DRAWING = /[─-▟]/;
 
 /** Offsets [start, end) restrict reading to a selection or "from here"; the
@@ -96,7 +97,11 @@ function inline(source, i, to, state, emit, table) {
       const foot = /^\[\^[^\]]+\]/.exec(rest);
       if (foot) { i += foot[0].length; continue; }
       const link = /^\[([^\]]*)\](?:\([^)]*\)|\[[^\]]*\])/.exec(rest);
+      // Video timestamps such as [59:10] or [1:00:29](link) are not read.
+      if (link && TIMESTAMP.test(link[1])) { i += link[0].length; continue; }
       if (link) { inline(source, i + 1, i + 1 + link[1].length, state, emit, false); i += link[0].length; continue; }
+      const stamp = /^\[([^\]\n]*)\]/.exec(rest);
+      if (stamp && TIMESTAMP.test(stamp[1])) { i += stamp[0].length; continue; }
       i++; continue;
     }
     if (ch === ']') { i++; continue; }

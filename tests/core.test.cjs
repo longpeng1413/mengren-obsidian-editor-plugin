@@ -317,3 +317,12 @@ test('long read-aloud sentences split at a soft break, never mid-word when avoid
   assert.deepEqual(read.map(x=>x.text),['02、规则体系','00、规则体系说明','02、课程专用规则','无语言','引用里的块']);
   for(const x of read) assert.equal(tree.slice(x.from,x.to),x.text);
 });
+
+test('read-aloud skips bracketed video timestamps but keeps ordinary times',()=>{
+  const text='- 准备怎样拿单。[59:10] [59:14] [1:00:29]\n[59:10] 那这两种模型你要想一想？\n下午 3:30 开会，见[1:00:29](https://v.example/#t=3629)、[00:16][17:41]和[笔记](a.md)。\n[12:34.5] 带小数的时间';
+  const s=speechSegments(text);
+  assert.deepEqual(s.map(x=>x.text),['准备怎样拿单。','那这两种模型你要想一想？','下午 3:30 开会，见、和笔记。','带小数的时间']);
+  for(const x of s) {assert.equal(text[x.from],x.text[0]);assert.equal(text[x.to-1],x.text.at(-1));}
+  // Bracketed text that is not a time is still read.
+  assert.deepEqual(speechSegments('[注意] 第 3 段 [1:2]').map(x=>x.text),['注意 第 3 段 1:2']);
+});
