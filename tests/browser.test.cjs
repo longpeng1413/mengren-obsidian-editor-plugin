@@ -685,10 +685,19 @@ test('without a system voice, listening reads Baidu audio with prefetch, mid-sen
   await page.evaluate(()=>audios.at(-1).end());await page.waitForTimeout(120);
   assert.equal(await page.locator('.tet-speaking').textContent(),'第二句。');
   assert.equal(await page.evaluate(()=>requests.at(-1)),'第四句。');
-  // A broken service stops with an explanation instead of hanging.
-  await page.evaluate(()=>{onlineStatus=500;fixture.plugin.speech.cache.clear();audios.at(-1).end();});await page.waitForTimeout(150);
-  assert.equal(await page.locator('.tet-speech-bar').count(),0);
-  assert.ok((await page.evaluate(()=>fixture.notices.at(-1))).includes('百度朗读暂时用不了'));
+  // A failing service is retried twice, then reading pauses on that sentence;
+  // the play button tries it again once the network is back.
+  await page.evaluate(()=>{onlineStatus=500;fixture.plugin.speech.cache.clear();requests.length=0;audios.at(-1).end();});
+  await page.waitForTimeout(2600);
+  assert.equal(await page.evaluate(()=>requests.filter(t=>t==='第三句。').length),3);
+  assert.equal(await page.locator('.tet-speech-bar').getAttribute('data-state'),'paused');
+  assert.equal(await page.locator('.tet-speaking').textContent(),'第三句。');
+  assert.ok((await page.evaluate(()=>fixture.notices.at(-1))).includes('已自动重试 2 次'));
+  await page.evaluate(()=>{onlineStatus=200;});
+  await page.locator('.tet-speech-main').click();await page.waitForTimeout(150);
+  assert.equal(await page.locator('.tet-speech-bar').getAttribute('data-state'),'playing');
+  assert.equal(await page.evaluate(()=>!audios.at(-1).paused),true);
+  await page.locator('.tet-speech-btn[aria-label="关闭听书"]').click();
   assert.equal(await page.evaluate(()=>fixture.plugin.speech.cache.size),0);
   // Settings offer the reading source; system voices are hidden without a system engine.
   await page.evaluate(()=>{fixture.plugin.tab.display();document.body.appendChild(fixture.plugin.tab.containerEl);});
@@ -770,4 +779,63 @@ test('in the editor, sentences inside a drawn table widget are highlighted on th
   assert.equal(await page.locator('.tet-speaking').textContent(),'后文。');
   assert.equal(await painted(),null);
   await page.evaluate(()=>fixture.plugin.speech.stop());
+});
+
+// Older WebViews (seen on a Huawei phone) have no CSS Custom Highlight API.
+// Reading: the Huawei case, API objects present but ::highlight() not painted.
+// Editor table: no Highlight constructor at all.
+test('without a working CSS Highlight API, the sentence is covered by translucent boxes that follow it',async()=>{
+  for(const [text,mode,second] of [['第一段。\n\n第二段。','reading','第二段。'],['前文。\n\n| 层次 | 职责 |\n| --- | --- |\n| 甲 | 乙 |','live','层次 ， 职责']]) {
+    await setup(text,mode);await fakeSpeech();
+    await page.evaluate(mode=>{
+      window.savedHighlight=window.Highlight;window.savedSupports=CSS.supports;
+      if(mode==='reading') CSS.supports=(...a)=>/::highlight/.test(a[0])?false:window.savedSupports.apply(CSS,a);
+      else window.Highlight=undefined;
+    },mode);
+    await page.locator('.view-action[data-icon=headphones]').click();await page.waitForTimeout(120);
+    if(mode==='reading') {
+      // The boxes sit exactly on the rendered sentence.
+      const check=await page.evaluate(()=>{const r=fixture.plugin.speech.session.range.getClientRects()[0],b=document.querySelector('.tet-speech-box').getBoundingClientRect();return [Math.abs(r.left-b.left),Math.abs(r.top-b.top),Math.abs(r.width-b.width)];});
+      for(const d of check) assert.ok(d<0.6,JSON.stringify(check));
+    }
+    await endSentence();
+    assert.equal((await said()).at(-1),second);
+    const boxes=await page.locator('.tet-speech-overlay .tet-speech-box').count();
+    assert.ok(boxes>=1,String(boxes));
+    // The diagnostics command reports the fallback and the found sentence.
+    await page.evaluate(()=>fixture.plugin.commands.get('read-aloud-diagnostics').callback());
+    const facts=await page.locator('.tet-diagnostics tr').evaluateAll(rows=>Object.fromEntries(rows.map(r=>[r.cells[0].textContent,r.cells[1].textContent])));
+    assert.equal(facts['能画新式高亮'],'不能');assert.equal(facts['使用的高亮方式'],'覆盖色块');assert.equal(facts['在页面上找到这句'],'找到了');
+    assert.ok(Number(facts['覆盖色块数量'])>=1);
+    await page.evaluate(()=>document.querySelector('.modal')?.remove());
+    // Boxes never catch taps: double-tapping the sentence still pauses.
+    assert.equal(await page.locator('.tet-speech-overlay').evaluate(n=>getComputedStyle(n).pointerEvents),'none');
+    const rect=await page.evaluate(()=>{const r=fixture.plugin.speech.session.range.getClientRects()[0];return {x:r.left+r.width/2,y:r.top+r.height/2};});
+    await page.mouse.dblclick(rect.x,rect.y);await page.waitForTimeout(80);
+    assert.equal(await page.locator('.tet-speech-bar').getAttribute('data-state'),'paused');
+    // Stopping removes the layer and its listeners.
+    await page.locator('.tet-speech-btn[aria-label="关闭听书"]').click();
+    assert.equal(await page.locator('.tet-speech-overlay').count(),0);
+    await page.evaluate(()=>{window.Highlight=window.savedHighlight;CSS.supports=window.savedSupports;});
+  }
+});
+
+// Chromium 114 (an Android WebView) paints ::highlight() transparent when its
+// colour comes from var(); the rule must carry a literal colour.
+test('the read-aloud ::highlight rule uses a literal colour that follows the chosen preset',async()=>{
+  await setup('第一句。第二句。','reading');await fakeSpeech();
+  const rule=()=>page.evaluate(()=>document.getElementById('tet-layout-vars').textContent.split('\n').find(l=>l.includes('::highlight')));
+  assert.equal(await rule(),'::highlight(tet-speaking) { background-color: rgba(255, 208, 0, .45); }');
+  for(const sheet of await page.evaluate(()=>[...document.styleSheets].flatMap(s=>{try{return [...s.cssRules].map(r=>r.cssText);}catch{return [];}}).filter(t=>t.includes('::highlight'))))
+    assert.ok(!sheet.includes('var('),sheet);
+  await page.locator('.view-action[data-icon=headphones]').click();await page.waitForTimeout(120);
+  const painted=()=>page.evaluate(()=>{const el=fixture.plugin.speech.session.range.startContainer.parentElement;return getComputedStyle(el,'::highlight(tet-speaking)').backgroundColor;});
+  assert.equal(await painted(),'rgba(255, 208, 0, 0.45)');
+  await page.evaluate(async()=>{fixture.plugin.settings.speechHighlight='green';await fixture.plugin.saveSettings();});
+  assert.equal(await painted(),'rgba(46, 204, 113, 0.42)');
+  // The diagnostics report the real colour of the painted sentence.
+  await page.evaluate(()=>fixture.plugin.commands.get('read-aloud-diagnostics').callback());
+  const facts=await page.locator('.tet-diagnostics tr').evaluateAll(rows=>Object.fromEntries(rows.map(r=>[r.cells[0].textContent,r.cells[1].textContent])));
+  assert.equal(facts['高亮实际颜色'],'rgba(46, 204, 113, 0.42)');
+  await page.evaluate(async()=>{document.querySelector('.modal')?.remove();fixture.plugin.settings.speechHighlight='yellow';await fixture.plugin.saveSettings();fixture.plugin.speech.stop();});
 });

@@ -120,6 +120,17 @@ class SizeModal extends Modal {
   onClose() { this.contentEl.empty(); }
 }
 
+class SpeechDiagnosticsModal extends Modal {
+  constructor(plugin) { super(plugin.app); this.plugin=plugin; }
+  onOpen() {
+    this.titleEl.setText('听书诊断信息');
+    this.contentEl.createEl('p',{text:'请在正在朗读时打开本窗口并截图发给开发者。这里的信息只显示在本机，不会发送到任何地方。',cls:'tet-muted'});
+    const table=this.contentEl.createEl('table',{cls:'tet-diagnostics'});
+    for(const [name,value] of this.plugin.speech.diagnostics()) { const row=table.createEl('tr'); row.createEl('th',{text:name}); row.createEl('td',{text:value}); }
+  }
+  onClose() { this.contentEl.empty(); }
+}
+
 class TraderSettings extends PluginSettingTab {
   constructor(app,plugin) { super(app,plugin); this.plugin=plugin; }
   display() {
@@ -242,6 +253,7 @@ export default class TraderEditorTools extends Plugin {
     };
     this.addCommand({id:'read-aloud',name:'听书：朗读 / 暂停当前笔记',checkCallback:listen('toggle')});
     this.addCommand({id:'read-aloud-from-start',name:'听书：从头朗读当前笔记',checkCallback:listen('start')});
+    this.addCommand({id:'read-aloud-diagnostics',name:'听书：显示诊断信息',callback:()=>new SpeechDiagnosticsModal(this).open()});
     this.addCommand({id:'read-aloud-stop',name:'听书：停止朗读',checkCallback:checking=>{ if(!this.speech.session) return false; if(!checking) this.speech.stop(); return true; }});
     this.registerMarkdownPostProcessor((el,ctx)=>this.images.annotate(el,ctx));
     this.registerMarkdownPostProcessor((el,ctx)=>decorateTabKnowledge(el,ctx,this.settings));

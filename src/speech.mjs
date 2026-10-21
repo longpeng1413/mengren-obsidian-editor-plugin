@@ -8,7 +8,11 @@ import { speechSegments, segmentAt } from './speech-text.mjs';
 const RATES = [0.75, 1, 1.25, 1.5, 1.75, 2];
 const PROGRESS_LIMIT = 200, PROGRESS_DAYS = 180;
 const UNAVAILABLE = '这台设备上的 Obsidian 没有提供系统朗读功能。请在听书设置里把“朗读来源”改为“自动”或“百度朗读”。';
-const ONLINE_FAIL = '百度朗读暂时用不了：网络不通，或百度改了接口。可以稍后再试，或在听书设置里改用系统声音。';
+const ONLINE_FAIL = '百度朗读这一句没取到声音（已自动重试 2 次），已暂停在这一句。网络恢复后点播放键继续；一直不行可在听书设置里改用系统声音。';
+const RETRY_DELAYS = [600, 1500];
+// Bumped on every local build the user tests, since the version number stays
+// the same until release; shown in the diagnostics.
+const REVISION = 4;
 const ENGINES = {auto: '自动（推荐）', system: '系统声音（离线）', baidu: '百度朗读（联网）'};
 const CACHE_LIMIT = 6;
 const RESUME_FOLLOW = 6000;
@@ -22,6 +26,23 @@ const HIGHLIGHTS = {
   purple: ['紫色', 'rgba(170, 102, 255, .45)'],
   accent: ['跟随主题强调色', null],
 };
+// Some older WebViews expose CSS.highlights / Highlight without painting
+// ::highlight(); ask whether the selector itself is understood.
+function supportsHighlight(win) {
+  try { return !!(win.CSS?.highlights && win.Highlight && win.CSS.supports?.('selector(::highlight(tet-speaking))')); }
+  catch { return false; }
+}
+/** The colour the browser really uses for the painted sentence; transparent
+ * means the highlight is drawn but invisible. */
+function highlightColor(s) {
+  const el = s?.range?.startContainer?.parentElement;
+  if (!el) return '—（读到表格或阅读模式的句子时才有）';
+  try {
+    const value = el.ownerDocument.defaultView.getComputedStyle(el, '::highlight(tet-speaking)').backgroundColor;
+    if (!value) return '无法读取';
+    return /rgba\(0, 0, 0, 0\)|transparent/.test(value) ? `${value}（透明，看不见）` : value;
+  } catch { return '无法读取'; }
+}
 function scrollParent(el) {
   for (let node = el; node && node.nodeType === 1; node = node.parentElement) {
     const style = node.ownerDocument.defaultView.getComputedStyle(node);
@@ -278,11 +299,20 @@ class SpeechReader {
     if (this.cache.has(text)) return this.cache.get(text);
     const lan = /[㐀-鿿]/.test(text) ? 'zh' : 'en';
     const url = `https://fanyi.baidu.com/gettts?lan=${lan}&text=${encodeURIComponent(text)}&spd=5&source=web`;
-    const job = requestUrl({url, method: 'GET', throw: false}).then(response => {
-      const type = Object.entries(response.headers || {}).find(([k]) => k.toLowerCase() === 'content-type')?.[1] || '';
-      if (response.status !== 200 || !/audio|mpeg/i.test(type) || !response.arrayBuffer?.byteLength) throw new Error(`HTTP ${response.status} ${type}`);
-      return response.arrayBuffer;
-    });
+    // Mobile networks drop requests now and then: retry twice before giving up.
+    const job = (async () => {
+      let last;
+      for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+        if (attempt) await new Promise(resolve => window.setTimeout(resolve, RETRY_DELAYS[attempt - 1]));
+        try {
+          const response = await requestUrl({url, method: 'GET', throw: false});
+          const type = Object.entries(response.headers || {}).find(([k]) => k.toLowerCase() === 'content-type')?.[1] || '';
+          if (response.status === 200 && /audio|mpeg/i.test(type) && response.arrayBuffer?.byteLength) return response.arrayBuffer;
+          last = new Error(`HTTP ${response.status} ${type}`);
+        } catch (error) { last = error; }
+      }
+      throw last;
+    })();
     this.cache.set(text, job);
     job.catch(() => this.cache.delete(text));
     // Memory only and bounded: a few sentences around the current one.
@@ -295,7 +325,7 @@ class SpeechReader {
   async speakOnline(s, segment, token) {
     let data;
     try { data = await this.fetchOnline(segment.text); }
-    catch { if (token === this.token) this.fail(ONLINE_FAIL); return; }
+    catch { if (token === this.token) this.pauseOnError(s); return; }
     if (token !== this.token) return;
     const url = URL.createObjectURL(new Blob([data], {type: 'audio/mpeg'}));
     const audio = new window.Audio(url);
@@ -303,9 +333,17 @@ class SpeechReader {
     audio.playbackRate = this.settings.speechRate;
     this.audio = {el: audio, url, index: s.index};
     audio.onended = () => { if (token !== this.token) return; this.stopAudio(); this.next(s, token); };
-    audio.onerror = () => { if (token === this.token) this.fail(ONLINE_FAIL); };
+    audio.onerror = () => { if (token === this.token) { this.stopAudio(); this.pauseOnError(s); } };
     try { await audio.play(); }
     catch (error) { if (token === this.token && this.audio?.el === audio) this.fail('无法播放声音：' + (error?.message || error)); }
+  }
+  /** Online audio failed even after retries: keep the place and pause, so the
+   * play button simply tries this sentence again. */
+  pauseOnError(s) {
+    if (this.session !== s) return;
+    this.token++; s.state = 'paused';
+    new Notice(ONLINE_FAIL, 10000);
+    this.render(); this.flushProgress();
   }
   stopAudio() {
     const audio = this.audio;
@@ -514,9 +552,67 @@ class SpeechReader {
   }
   paint(s, range) {
     s.range = range;
-    const win = s.view.containerEl.win || window, registry = win.CSS?.highlights;
-    if (!registry || !win.Highlight) return;
-    if (range) registry.set('tet-speaking', new win.Highlight(range)); else registry.delete('tet-speaking');
+    const win = s.view.containerEl.win || window;
+    if (supportsHighlight(win)) { if (range) win.CSS.highlights.set('tet-speaking', new win.Highlight(range)); else win.CSS.highlights.delete('tet-speaking'); }
+    else this.paintOverlay(s, range);
+  }
+  /** Facts for the "listening diagnostics" command: what this device supports
+   * and what the current session is doing. Shown to the user, nothing is sent. */
+  diagnostics() {
+    const s = this.session, win = s?.view.containerEl.win || window, nav = win.navigator;
+    const chrome = /Chrome\/(\d+)/.exec(nav.userAgent)?.[1];
+    const segment = s?.segments[s.index];
+    return [
+      ['插件版本', `${this.plugin.manifest.version}（修订 ${REVISION}）`],
+      ['设备', /Android/i.test(nav.userAgent) ? '安卓' : /iPhone|iPad/i.test(nav.userAgent) ? '苹果' : '电脑'],
+      ['网页内核版本', chrome ? `Chromium ${chrome}` : '未知'],
+      ['高亮功能入口', win.CSS?.highlights && win.Highlight ? '有' : '没有'],
+      ['能画新式高亮', supportsHighlight(win) ? '能' : '不能'],
+      ['使用的高亮方式', supportsHighlight(win) ? '新式高亮' : '覆盖色块'],
+      ['系统朗读', this.available() ? '有' : '没有'],
+      ['朗读来源', this.engine() === 'baidu' ? '百度朗读' : '系统声音'],
+      ['当前模式', !s ? '没有在朗读' : s.view.getMode?.() === 'preview' ? '阅读模式' : '编辑模式'],
+      ['当前句子', segment ? segment.text.slice(0, 30) : '—'],
+      ['在页面上找到这句', !s ? '—' : s.range ? '找到了' : s.view.getMode?.() === 'preview' ? '没找到' : '没找到（编辑模式的普通段落用编辑器标记，不需要找）'],
+      ['覆盖色块数量', s?.overlay ? String(s.overlay.layer.childElementCount) : '0'],
+      ['高亮实际颜色', highlightColor(s)],
+    ];
+  }
+  /** Older WebViews (some Android phones) lack the CSS Custom Highlight API:
+   * lay translucent boxes over the sentence instead, redrawn while scrolling.
+   * Nothing is written into the note's rendered DOM. */
+  paintOverlay(s, range) {
+    const old = s.overlay;
+    if (old) { old.layer.remove(); old.stop(); s.overlay = null; }
+    if (!range) return;
+    const host = s.view.contentEl, doc = host.ownerDocument, win = doc.defaultView;
+    const layer = doc.createElement('div');
+    layer.className = 'tet-speech-overlay';
+    layer.setAttribute('aria-hidden', 'true');
+    host.insertBefore(layer, s.bar || null);
+    let frame = 0;
+    const draw = () => {
+      frame = 0;
+      if (!range.startContainer.isConnected) { layer.replaceChildren(); return; }
+      const base = host.getBoundingClientRect(), scroller = scrollParent(range.startContainer.parentElement);
+      const view = scroller ? scroller.getBoundingClientRect() : base;
+      const boxes = [];
+      for (const r of range.getClientRects()) {
+        if (r.width < 1 || r.bottom < view.top || r.top > view.bottom) continue;
+        const box = doc.createElement('div');
+        box.className = 'tet-speech-box';
+        box.style.left = `${r.left - base.left}px`; box.style.top = `${r.top - base.top}px`;
+        box.style.width = `${r.width}px`; box.style.height = `${r.height}px`;
+        boxes.push(box);
+      }
+      layer.replaceChildren(...boxes);
+    };
+    const later = () => { if (!frame) frame = win.requestAnimationFrame(draw); };
+    // Scroll events do not bubble; a capturing listener sees any inner scroller.
+    host.addEventListener('scroll', later, {capture: true, passive: true});
+    win.addEventListener('resize', later);
+    s.overlay = {layer, stop: () => { host.removeEventListener('scroll', later, {capture: true}); win.removeEventListener('resize', later); if (frame) win.cancelAnimationFrame(frame); }};
+    draw();
   }
   clearHighlight(s) {
     this.paint(s, null);

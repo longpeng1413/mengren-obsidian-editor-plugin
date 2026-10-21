@@ -230,7 +230,11 @@ function applyLayout(doc, settings) {
   if (!style) { style = doc.createElement('style'); style.id = 'tet-layout-vars'; doc.head.appendChild(style); }
   // Also reaches Obsidian's temporary print tree; settings travel in a style
   // sheet, not transient inline CSS on a particular renderer element.
-  style.textContent = `:root { ${Object.entries(vars).map(([k,v])=>`${k}: ${v};`).join(' ')} }`;
+  // ::highlight() gets a literal colour: older Chromium (seen: Android WebView
+  // 114) cannot resolve var() inside highlight pseudos and paints nothing.
+  const accent=doc.defaultView?.getComputedStyle(doc.body).getPropertyValue('--interactive-accent').trim();
+  const paint=speechColor || (accent ? `color-mix(in srgb, ${accent} 40%, transparent)` : HIGHLIGHTS.yellow[1]);
+  style.textContent = `:root { ${Object.entries(vars).map(([k,v])=>`${k}: ${v};`).join(' ')} }\n::highlight(tet-speaking) { background-color: ${paint}; }`;
 }
 
 export { layoutExtension, applyLayout, decorateTabKnowledge, refreshTabKnowledge, tabKnowledgeKeys, decorateExtraBlankLines, refreshExtraBlankLines };

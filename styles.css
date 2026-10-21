@@ -246,10 +246,16 @@ body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-h3.t
 .tet-format-preview textarea { width:100%;height:300px;resize:vertical;font-family:var(--font-monospace,monospace);font-size:12px;white-space:pre; }
 @media (max-width:600px) { .tet-format-preview { grid-template-columns:1fr; } }
 /* Listening: the sentence being read and a floating player at the bottom of the note. */
-/* --tet-speech-highlight is the chosen preset; without it, the theme accent. */
+/* --tet-speech-highlight is the chosen preset; without it, the theme accent.
+   ::highlight(tet-speaking) is written with a literal colour by applyLayout(). */
 .markdown-source-view .tet-speaking { background-color: var(--tet-speech-highlight, color-mix(in srgb, var(--interactive-accent) 40%, transparent)); border-radius: 3px; }
-::highlight(tet-speaking) { background-color: var(--tet-speech-highlight, color-mix(in srgb, var(--interactive-accent) 40%, transparent)); }
+/* Fallback for WebViews without ::highlight(): translucent boxes over the sentence. */
+.tet-speech-overlay { position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none; }
+.tet-speech-box { position: absolute; border-radius: 3px; background-color: var(--tet-speech-highlight, var(--text-highlight-bg, rgba(255, 208, 0, .45))); opacity: .85; }
 .tet-speech-action.is-active { color: var(--interactive-accent); }
+.tet-diagnostics { width: 100%; border-collapse: collapse; font-size: var(--font-ui-small); }
+.tet-diagnostics th, .tet-diagnostics td { padding: 4px 8px; border-bottom: 1px solid var(--background-modifier-border); text-align: left; vertical-align: top; }
+.tet-diagnostics th { width: 9em; color: var(--text-muted); font-weight: normal; }
 .tet-speech-host { position: relative; }
 .tet-speech-bar {
   position: absolute;

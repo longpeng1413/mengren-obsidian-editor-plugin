@@ -104,9 +104,11 @@ Please report bugs with anonymized minimal Markdown, your Obsidian and plugin ve
 
 > **Mengren Editor（猛人编辑器）**，原名「猛人obsidian编辑插件」。0.1.8 起为符合 Obsidian 社区目录规则（名称不能含 “Obsidian”），显示名改为 Mengren Editor；内部 ID `trader-editor-tools` 不变，已有设置、快捷键和备份不受影响。
 
-版本 **0.1.12**，MIT 开源。完整可安装插件，不需要安装 Node.js，不需要编译。优先支持 Windows / Obsidian 1.13–1.14 / Live Preview；手机可安装，但尚未真机验收。
+版本 **0.1.13**，MIT 开源。完整可安装插件，不需要安装 Node.js，不需要编译。优先支持 Windows / Obsidian 1.13–1.14 / Live Preview；手机可安装，但尚未真机验收。
 
 [下载发布版](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/releases/latest) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md) · [架构](docs/ARCHITECTURE.md) · [测试记录](TESTING.md) · [问题反馈](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/issues)
+
+0.1.13 修复部分安卓手机（如网页内核较旧的华为手机）阅读模式和表格里看不到朗读高亮；百度朗读失败时自动重试并暂停在当前句；新增命令“听书：显示诊断信息”。
 
 0.1.12 听书改进：高亮颜色可选（默认黄色，更醒目）；双击正在读的句子暂停 / 继续；手机上自动跟着滚动；编辑模式下表格、提示框里的句子也有高亮；纯文字代码块也会朗读。
 
@@ -271,6 +273,7 @@ Markdown 原生格式负责语义，插件只添加视觉层。以粗体同时�
 - 底部播放条：暂停 / 继续、上一句 / 下一句、语速（0.75–2 倍）、选声音；“更多”里可以从头读、从光标处（或当前屏幕）读、打开听书设置。
 - 正在读的句子会高亮（颜色可在设置里选），页面自动跟着滚动；自己滑动页面后暂停跟随，停手 6 秒自动恢复，也可以点定位按钮马上回到朗读处。
 - 双击正在读的高亮句子即可暂停，再双击继续（手机上双击屏幕）。
+- 部分手机（如一些华为手机）的网页内核较旧，不支持新式高亮；插件会自动改为在句子上盖一层半透明色块，效果相同。
 - 跳过属性区、编程语言代码块（js、python 等）、公式、注释、网址和图片等嵌入；链接只读显示的文字；Tab 知识行、表格文字、纯文字代码块（没写语言或 text / md）会读，目录树线条 ├── └── 不读。
 - 一边听一边改笔记也可以，会从改动后对应的位置接着读。
 
