@@ -9,7 +9,8 @@ permissions:
   attestations: write
 jobs:
   release:
-    runs-on: ubuntu-latest
+    # Pinned to the same image as CI (ubuntu-latest moved to Ubuntu 26 in Oct 2026).
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
