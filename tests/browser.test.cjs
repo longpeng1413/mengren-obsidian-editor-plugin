@@ -839,3 +839,43 @@ test('the read-aloud ::highlight rule uses a literal colour that follows the cho
   assert.equal(facts['高亮实际颜色'],'rgba(46, 204, 113, 0.42)');
   await page.evaluate(async()=>{document.querySelector('.modal')?.remove();fixture.plugin.settings.speechHighlight='yellow';await fixture.plugin.saveSettings();fixture.plugin.speech.stop();});
 });
+
+test('while the player is open, double-tapping another sentence reads from there',async()=>{
+  // Editor: paragraphs, a drawn table, and a paused player.
+  await setup('第一段。\n\n第二段。\n\n| 层次 | 职责 |\n| --- | --- |\n| 甲 | 乙 |\n\n第三段。');await fakeSpeech();
+  await page.locator('.view-action[data-icon=headphones]').click();await page.waitForTimeout(120);
+  const at=text=>page.evaluate(t=>{const c=fixture.cm.coordsAtPos(fixture.cm.state.doc.toString().indexOf(t)+1);return {x:c.left+2,y:(c.top+c.bottom)/2};},text);
+  const state=()=>page.locator('.tet-speech-bar').getAttribute('data-state');
+  let p=await at('第三段');
+  await page.mouse.dblclick(p.x,p.y);await page.waitForTimeout(150);
+  assert.equal((await said()).at(-1),'第三段。');
+  assert.equal(await page.locator('.tet-speaking').textContent(),'第三段。');
+  assert.equal(await page.evaluate(()=>fixture.cm.state.selection.main.empty),true);
+  // Paused: a double-tap elsewhere starts playing from there.
+  await page.locator('.tet-speech-main').click();await page.waitForTimeout(80);
+  assert.equal(await state(),'paused');
+  p=await at('第一段');
+  await page.mouse.dblclick(p.x,p.y);await page.waitForTimeout(150);
+  assert.equal(await state(),'playing');
+  assert.equal((await said()).at(-1),'第一段。');
+  // A cell of the drawn table jumps to that row.
+  const cell=await page.locator('.cm-table-widget td').first().boundingBox();
+  await page.mouse.dblclick(cell.x+8,cell.y+cell.height/2);await page.waitForTimeout(150);
+  assert.equal((await said()).at(-1),'甲 ， 乙');
+  // With the player closed, a double-click is just a word selection again.
+  await page.locator('.tet-speech-btn[aria-label="关闭听书"]').click();
+  const count=(await said()).length;
+  p=await at('第二段');
+  await page.mouse.dblclick(p.x,p.y);await page.waitForTimeout(150);
+  assert.equal((await said()).length,count);
+  assert.equal(await page.locator('.tet-speech-bar').count(),0);
+  // Reading view: a double-tap on another paragraph reads from it.
+  await setup('第一段。\n\n第二段。\n\n第三段。','reading');await fakeSpeech();
+  await page.locator('.view-action[data-icon=headphones]').click();await page.waitForTimeout(120);
+  const third=await page.locator('.markdown-preview-view p').nth(2).boundingBox();
+  await page.mouse.dblclick(third.x+10,third.y+third.height/2);await page.waitForTimeout(150);
+  assert.equal((await said()).at(-1),'第三段。');
+  assert.equal(await page.evaluate(()=>[...CSS.highlights.get('tet-speaking')][0].toString()),'第三段。');
+  assert.equal(await page.evaluate(()=>getSelection().isCollapsed),true);
+  await page.evaluate(()=>fixture.plugin.speech.stop());
+});

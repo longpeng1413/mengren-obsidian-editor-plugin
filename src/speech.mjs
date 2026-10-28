@@ -12,7 +12,7 @@ const ONLINE_FAIL = '百度朗读这一句没取到声音（已自动重试 2 �
 const RETRY_DELAYS = [600, 1500];
 // Bumped on every local build the user tests, since the version number stays
 // the same until release; shown in the diagnostics.
-const REVISION = 5;
+const REVISION = 6;
 const ENGINES = {auto: '自动（推荐）', system: '系统声音（离线）', baidu: '百度朗读（联网）'};
 const CACHE_LIMIT = 6;
 const RESUME_FOLLOW = 6000;
@@ -241,8 +241,14 @@ class SpeechReader {
       const now = Date.now(), here = {x: event.clientX, y: event.clientY};
       const pair = !!lastTap && now - lastTap.t < 350 && Math.hypot(here.x - lastTap.x, here.y - lastTap.y) < 24;
       lastTap = pair ? null : {...here, t: now};
-      if (!pair || !this.onSentence(session, here.x, here.y)) return;
-      this.toggle();
+      if (!pair) return;
+      // On the sentence being read: pause / resume. Elsewhere: read from there.
+      if (this.onSentence(session, here.x, here.y)) this.toggle();
+      else {
+        const offset = this.offsetAtPoint(session, here.x, here.y, event.target);
+        if (offset === null) return;
+        this.jumpTo(session, offset);
+      }
       // The editor finishes its own double-click word selection after this click.
       window.setTimeout(() => this.dropWordSelection(session), 30);
     });
@@ -543,6 +549,45 @@ class SpeechReader {
     if (!value?.show) return false;
     const pos = cm.posAtCoords({x, y});
     return pos !== null && pos >= value.from && pos <= value.to;
+  }
+  /** Source offset of the sentence under a double-tap, or null when the tap is
+   * not on the note. Drawn blocks (Reading sections, editor tables and
+   * Callouts) are matched by the rendered text of each sentence they hold. */
+  offsetAtPoint(s, x, y, target) {
+    const all = s.selection ? speechSegments(s.text) : s.segments;
+    const hit = (root, from, to) => {
+      const inside = all.filter(seg => seg.to > from && seg.from < to);
+      for (const seg of inside) {
+        const range = findRendered(root, seg.text);
+        if (range && [...range.getClientRects()].some(r => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom)) return seg.from;
+      }
+      // Not on a sentence (an image, code, a gap): the next sentence after it.
+      return inside.length ? inside[0].from : null;
+    };
+    if (s.view.getMode?.() === 'preview') {
+      const sections = s.view.previewMode?.renderer?.sections;
+      const section = Array.isArray(sections) ? sections.find(x => x.el?.contains(target) && x.start && x.end) : null;
+      return section ? hit(section.el, section.start.offset, section.end.offset + 1) : null;
+    }
+    const cm = s.view.editor?.cm;
+    if (!cm || !cm.contentDOM.contains(target)) return null;
+    const widget = [...cm.contentDOM.children].find(el => !el.classList.contains('cm-line') && el.contains(target));
+    if (widget) {
+      let block;
+      try { block = cm.lineBlockAt(cm.posAtDOM(widget)); } catch { return null; }
+      return hit(widget, block.from, block.to + 1);
+    }
+    const pos = cm.posAtCoords({x, y});
+    return pos === null ? null : pos;
+  }
+  /** Read from the sentence at a source offset, playing even if paused. */
+  jumpTo(s, offset) {
+    this.sync(s);
+    if (s.selection) { s.selection = false; s.end = s.text.length; s.segments = speechSegments(s.text); }
+    const index = segmentAt(s.segments, offset);
+    if (index >= s.segments.length) return;
+    s.index = index; s.follow = true; s.handScroll = 0;
+    this.speak();
   }
   /** A double-click also selects a word; give the reader a clean caret back. */
   dropWordSelection(s) {
