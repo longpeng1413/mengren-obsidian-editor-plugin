@@ -132,9 +132,16 @@ function isTableRule(line) {
   const cells = splitPipes(line);
   return cells.length > 0 && /\|/.test(line) && cells.every((c) => /^\s*:?-{3,}:?\s*$/.test(c));
 }
+function columns(space) {
+  let n = 0;
+  for (const c of space) n = c === "	" ? n + 4 - n % 4 : n + 1;
+  return n;
+}
 function listItem(line) {
-  const m = /^( *)([-+*]|\d+[.)])\s+(.*)$/.exec(line);
-  return m ? { indent: m[1].length, content: m[3] } : null;
+  const m = /^([ \t]*)([-+*]|\d+[.)])(\s+)(.*)$/.exec(line);
+  if (!m) return null;
+  const indent = columns(m[1]);
+  return { indent, content: m[4], tab: m[1].includes("	"), contentIndent: columns(m[1] + m[2] + m[3].replace(/\t[\s\S]*/, "	")) };
 }
 function interruptsParagraph(line) {
   return /^ {0,3}#{1,6}(?:\s|$)/.test(line) || /^ {0,3}(?:`{3,}|~{3,}|\$\$)/.test(line) || /^ {0,3}(?:([-*_])(?:\s*\1){2,})\s*$/.test(line) || /^ {0,3}(?:[-+*]|1[.)])\s+\S/.test(line) || /^ {0,3}<(?:!--|\?|!\[CDATA\[|![A-Z]|\/?(?:div|table|pre|script|style|details|section|figure|iframe)\b)/.test(line);
@@ -238,11 +245,11 @@ function classify(text, { splitLazyListLines = false } = {}) {
       continue;
     }
     const li = listItem(s);
-    if (li) {
+    if (li && (!li.tab || list2)) {
       kinds[i] = "list";
       list2 = true;
       lastListIndent = li.indent;
-      listContentIndent = s.match(/^ *(?:[-+*]|\d+[.)])\s+/)[0].length;
+      listContentIndent = li.contentIndent;
       continue;
     }
     if (/^( {2,}|\t)/.test(s)) {
@@ -425,7 +432,8 @@ function excludedRanges(text, data) {
       else if (s.split("%%").length === 2) comment = "%%";
       return;
     }
-    if (listItem(s)) list2 = true;
+    const li = listItem(s);
+    if (li && (!li.tab || list2)) list2 = true;
     if (!list2 && /^( {4}|\t)/.test(s)) ranges.push([line.start, line.end]);
     if (s.trim() && !/^\s/.test(s) && !listItem(s) && !/^>/.test(s)) list2 = false;
   });
@@ -4923,9 +4931,9 @@ var FormatPreviewModal = class extends import_obsidian5.Modal {
     this.titleEl.setText("\u683C\u5F0F\u5316\u5F53\u524D\u7B14\u8BB0 \xB7 \u9884\u89C8");
     el.createEl("p", { text: `\u5C06\u63D2\u5165 ${this.result.inserted} \u4E2A\u7A7A\u884C\uFF1B\u4FDD\u62A4 ${this.result.protectedLines} \u884C\u7279\u6B8A\u7ED3\u6784\u3002\u4E0D\u4F1A\u4FEE\u6539\u6587\u5B57\u3001\u56FE\u7247\u94FE\u63A5\u6216\u5C3A\u5BF8\u3002` });
     el.createEl("p", { text: this.plugin.settings.splitProseLines ? "\u5F53\u524D\u6A21\u5F0F\uFF1A\u628A\u8FDE\u7EED\u666E\u901A\u6B63\u6587\u7684\u7269\u7406\u6362\u884C\u5206\u6210\u72EC\u7ACB\u6BB5\u843D\u3002\u82E5\u539F\u7B14\u8BB0\u7528\u6362\u884C\u624B\u5DE5\u6298\u884C\uFF0C\u8BF7\u5173\u95ED\u8BBE\u7F6E\u4E2D\u7684\u201C\u9010\u884C\u5206\u6BB5\u201D\u540E\u518D\u8FD0\u884C\u3002" : "\u5F53\u524D\u6A21\u5F0F\uFF1A\u4FDD\u7559\u6B63\u6587\u624B\u5DE5\u6362\u884C\uFF0C\u53EA\u5206\u9694\u6807\u9898\u3001\u56FE\u7247\u3001\u5217\u8868\u548C\u8868\u683C\u3002", cls: "tet-muted" });
-    const columns = el.createDiv({ cls: "tet-format-preview" });
+    const columns2 = el.createDiv({ cls: "tet-format-preview" });
     for (const [label, value] of [["\u539F\u6587", this.original], ["\u683C\u5F0F\u5316\u540E", this.result.text]]) {
-      const col = columns.createDiv();
+      const col = columns2.createDiv();
       col.createEl("h3", { text: label });
       const area = col.createEl("textarea");
       area.value = value;
