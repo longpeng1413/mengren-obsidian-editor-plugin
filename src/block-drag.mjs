@@ -3,12 +3,13 @@ import { EditorState } from '@codemirror/state';
 import { foldedRanges, foldEffect } from '@codemirror/language';
 import { model, blockAt, dropTargets, moveBlock } from './blocks.mjs';
 
-/* Drag-to-move blocks in the editor: hover a heading, paragraph, list item or
- * image to show a handle at its left; drag the handle to move the block (a
- * heading takes its whole section). One transaction, one undo step. Desktop
- * pointer only; touch keeps native selection. */
+/* Drag-to-move blocks in the editor. With a mouse, hovering a block shows a
+ * handle at its left; drag the handle. On a touch screen, long-press a block
+ * while not typing: it lifts, follows the finger and drops where the line
+ * shows. A heading takes its whole section. One transaction, one undo step. */
 
-const HANDLE_GAP = 24, HEADING_GAP = 40, EDGE = 48;
+const HANDLE_GAP = 24, WIDE_GAP = 40, EDGE = 48;
+const LONG_PRESS = 350, SLOP = 10;
 
 /** Smallest single change turning `a` into `b`, so undo and decorations only
  * see the moved region. */
@@ -23,7 +24,7 @@ function diff(a, b) {
 function blockDragExtension(plugin) {
   return ViewPlugin.fromClass(class {
     constructor(view) {
-      this.view = view; this.hover = null; this.drag = null; this.cache = null;
+      this.view = view; this.hover = null; this.drag = null; this.press = null; this.cache = null;
       const doc = view.dom.ownerDocument;
       this.handle = view.dom.appendChild(doc.createElement('div'));
       this.handle.className = 'tet-drag-handle';
@@ -35,13 +36,24 @@ function blockDragExtension(plugin) {
       this.onLeave = e => { if (!this.drag && !this.handle.contains(e.relatedTarget)) this.hide(); };
       this.onDown = e => this.start(e);
       this.onScroll = () => { if (!this.drag) this.hide(); };
+      this.onTouchStart = e => this.touchStart(e);
+      this.onTouchMove = e => this.touchMove(e);
+      this.onTouchEnd = e => this.touchEnd(e);
+      // While a block is lifted the long press must not select text or open a menu.
+      this.onBlock = e => { if (this.touching()) e.preventDefault(); };
       view.dom.addEventListener('pointermove', this.onMove);
       view.dom.addEventListener('pointerleave', this.onLeave);
       view.scrollDOM.addEventListener('scroll', this.onScroll);
       this.handle.addEventListener('pointerdown', this.onDown);
+      view.dom.addEventListener('touchstart', this.onTouchStart, { passive: true });
+      view.dom.addEventListener('touchmove', this.onTouchMove, { passive: false });
+      view.dom.addEventListener('touchend', this.onTouchEnd, { passive: false });
+      view.dom.addEventListener('touchcancel', this.onTouchEnd, { passive: false });
+      doc.addEventListener('contextmenu', this.onBlock, true);
+      doc.addEventListener('selectstart', this.onBlock, true);
     }
     update(update) {
-      if (update.docChanged) { this.cache = null; if (!this.drag) this.hide(); return; }
+      if (update.docChanged) { this.cache = null; this.clearPress(); if (!this.drag) this.hide(); return; }
       // Layout moved (window resized, an image loaded): keep the handle on its block.
       if ((update.geometryChanged || update.viewportChanged) && this.hover && !this.drag && !this.handle.hidden) {
         const block = this.hover;
@@ -49,10 +61,17 @@ function blockDragExtension(plugin) {
       }
     }
     destroy() {
-      this.cancel();
-      this.view.dom.removeEventListener('pointermove', this.onMove);
-      this.view.dom.removeEventListener('pointerleave', this.onLeave);
-      this.view.scrollDOM.removeEventListener('scroll', this.onScroll);
+      this.cancel(); this.clearPress();
+      const view = this.view, doc = view.dom.ownerDocument;
+      view.dom.removeEventListener('pointermove', this.onMove);
+      view.dom.removeEventListener('pointerleave', this.onLeave);
+      view.scrollDOM.removeEventListener('scroll', this.onScroll);
+      view.dom.removeEventListener('touchstart', this.onTouchStart);
+      view.dom.removeEventListener('touchmove', this.onTouchMove);
+      view.dom.removeEventListener('touchend', this.onTouchEnd);
+      view.dom.removeEventListener('touchcancel', this.onTouchEnd);
+      doc.removeEventListener('contextmenu', this.onBlock, true);
+      doc.removeEventListener('selectstart', this.onBlock, true);
       this.handle.remove();
     }
     enabled() {
@@ -64,6 +83,16 @@ function blockDragExtension(plugin) {
       return this.cache;
     }
     hide() { this.handle.hidden = true; this.hover = null; }
+    /** A block lifted by a finger (touch identifiers start at 0). */
+    touching() { return !!this.drag && this.drag.touch !== undefined; }
+
+    /** Block under a viewport y. By height only: a folded heading or an image,
+     * table or Callout widget is one row, and x may be outside the text. */
+    blockAtY(y) {
+      const view = this.view, row = view.lineBlockAtHeight(y - view.documentTop);
+      const { text, m } = this.model();
+      return blockAt(text, view.state.doc.lineAt(row.from).number - 1, m);
+    }
 
     /** Viewport rectangle of a source line's first visual row and its text start. */
     row(lineIndex) {
@@ -83,16 +112,10 @@ function blockDragExtension(plugin) {
     }
 
     move(e) {
-      if (this.drag) return this.dragTo(e);
+      if (this.drag) return this.touching() ? undefined : this.dragTo(e.clientX, e.clientY, e.pointerId);
       if (e.pointerType !== 'mouse' || e.buttons || !this.enabled()) return this.hide();
       if (this.handle.contains(e.target)) return;
-      const view = this.view;
-      // By height only: a folded heading or an image widget is one row, and
-      // the pointer may be right of the text or over the handle column.
-      const row = view.lineBlockAtHeight(e.clientY - view.documentTop);
-      const { text, m } = this.model();
-      const line = view.state.doc.lineAt(row.from).number - 1;
-      const block = blockAt(text, line, m);
+      const block = this.blockAtY(e.clientY);
       if (!block) return this.hide();
       // Pointer over a child line of a list item: offer the item it belongs to.
       if (this.hover && this.hover.from === block.from && this.hover.to === block.to && !this.handle.hidden) return;
@@ -105,8 +128,9 @@ function blockDragExtension(plugin) {
     /** Handle position beside the block's first row; `read` only measures. */
     place(block, read = false) {
       const r = this.row(block.from), box = this.view.dom.getBoundingClientRect();
-      // Headings and list items have Obsidian's fold arrow at their left: stay clear of it.
-      const gap = block.kind === 'heading' || block.kind === 'list' ? HEADING_GAP : HANDLE_GAP;
+      // Headings and list items have Obsidian's fold arrow at their left, tables
+      // their row handles: stay clear of them.
+      const gap = /^(heading|list|table)$/.test(block.kind) ? WIDE_GAP : HANDLE_GAP;
       const style = { top: `${(r.top + r.bottom) / 2 - 11 - box.top}px`, left: `${r.left - gap - box.left}px` };
       if (!read) Object.assign(this.handle.style, style);
       return style;
@@ -115,7 +139,17 @@ function blockDragExtension(plugin) {
     start(e) {
       if (e.button !== 0 || !this.hover || !this.enabled()) return;
       e.preventDefault(); e.stopPropagation();
-      const view = this.view, { text, m } = this.model(), block = this.hover;
+      if (!this.begin(this.hover, e.clientX, e.clientY, { pointer: e.pointerId })) return;
+      try { this.handle.setPointerCapture(e.pointerId); } catch { /* the pointer already left */ }
+      this.handle.classList.add('is-dragging');
+      this.onUp = ev => { if (ev.pointerId === this.drag?.pointer) this.finish(ev.type === 'pointerup'); };
+      this.handle.addEventListener('pointerup', this.onUp);
+      this.handle.addEventListener('pointercancel', this.onUp);
+    }
+
+    /** Start moving `block` from viewport point (x, y). */
+    begin(block, x, y, extra) {
+      const view = this.view, { text, m } = this.model();
       // Positions hidden inside a folded section cannot be seen or aimed at.
       const folds = foldedRanges(view.state), hidden = line => {
         if (line >= view.state.doc.lines) return false;
@@ -125,29 +159,102 @@ function blockDragExtension(plugin) {
         return inside;
       };
       const targets = dropTargets(text, block, m).filter(t => !hidden(t.line));
-      if (!targets.length) return;
+      if (!targets.length) return false;
       const doc = view.dom.ownerDocument;
       // Remember a folded heading so the moved section stays folded.
       let folded = false;
       if (block.kind === 'heading') {
         const end = view.state.doc.line(block.from + 1).to;
-        foldedRanges(view.state).between(end, end + 1, (from) => { if (from === end) folded = true; });
+        folds.between(end, end + 1, from => { if (from === end) folded = true; });
       }
       const shade = view.dom.appendChild(doc.createElement('div'));
       shade.className = 'tet-drag-source';
       const indicator = view.dom.appendChild(doc.createElement('div'));
       indicator.className = 'tet-drop-indicator'; indicator.hidden = true;
-      this.drag = { block, text, targets, folded, shade, indicator, target: null, pointer: e.pointerId, x: e.clientX, y: e.clientY, frame: 0 };
-      try { this.handle.setPointerCapture(e.pointerId); } catch { /* the pointer already left */ }
-      this.handle.classList.add('is-dragging');
+      this.drag = { block, text, targets, folded, shade, indicator, target: null, x, y, frame: 0, ...extra };
       doc.body.classList.add('tet-block-dragging');
-      this.onUp = ev => this.finish(ev);
       this.onKey = ev => { if (ev.key === 'Escape') { ev.preventDefault(); this.cancel(); } };
-      this.handle.addEventListener('pointerup', this.onUp);
-      this.handle.addEventListener('pointercancel', this.onUp);
       doc.addEventListener('keydown', this.onKey, true);
       this.paint();
       this.autoscroll();
+      return true;
+    }
+
+    /** Touch: a long press on a block lifts it, unless the editor is being
+     * typed in (then a long press selects text as usual). */
+    touchStart(e) {
+      this.clearPress();
+      if (this.drag || e.touches.length !== 1 || !this.enabled() || this.view.hasFocus) return;
+      const t = e.touches[0], block = this.blockAtY(t.clientY);
+      if (!block) return;
+      const win = this.view.dom.ownerDocument.defaultView;
+      this.press = { block, id: t.identifier, x: t.clientX, y: t.clientY };
+      this.press.timer = win.setTimeout(() => this.lift(), LONG_PRESS);
+    }
+    clearPress() {
+      if (!this.press) return;
+      this.view.dom.ownerDocument.defaultView?.clearTimeout(this.press.timer);
+      this.press = null;
+    }
+    lift() {
+      const p = this.press;
+      if (!p || this.view.state.doc.toString() !== this.model().text) return this.clearPress();
+      const doc = this.view.dom.ownerDocument;
+      doc.getSelection()?.removeAllRanges();
+      if (!this.begin(p.block, p.x, p.y, { touch: p.id })) return this.clearPress();
+      this.press = null;
+      this.ghost(p.x, p.y);
+      try { doc.defaultView.navigator.vibrate?.(15); } catch { /* no haptics */ }
+    }
+    touchOf(e) {
+      for (const t of e.changedTouches) if (t.identifier === (this.drag?.touch ?? this.press?.id)) return t;
+      return null;
+    }
+    touchMove(e) {
+      if (this.press && !this.drag) {
+        const t = this.touchOf(e);
+        // Moving before the press completes is a scroll: let it be.
+        if (t && Math.hypot(t.clientX - this.press.x, t.clientY - this.press.y) > SLOP) this.clearPress();
+        return;
+      }
+      if (!this.touching()) return;
+      const t = this.touchOf(e);
+      if (!t) return;
+      e.preventDefault();
+      this.dragTo(t.clientX, t.clientY);
+    }
+    touchEnd(e) {
+      if (this.press && !this.drag) { this.clearPress(); return; }
+      if (!this.touching() || !this.touchOf(e)) return;
+      // No click, caret or keyboard after a drop.
+      e.preventDefault();
+      this.finish(e.type === 'touchend', true);
+    }
+
+    /** A floating copy of the block under the finger, as in wolai and Notion. */
+    ghost(x, y) {
+      const d = this.drag, view = this.view, doc = view.dom.ownerDocument;
+      const content = view.contentDOM.getBoundingClientRect(), top = parseFloat(d.shade.style.top) + view.dom.getBoundingClientRect().top;
+      const bottom = top + parseFloat(d.shade.style.height);
+      const ghost = doc.body.appendChild(doc.createElement('div'));
+      ghost.className = 'tet-drag-ghost markdown-source-view mod-cm6 is-live-preview';
+      const inner = ghost.appendChild(doc.createElement('div'));
+      inner.className = 'cm-content';
+      for (const el of view.contentDOM.children) {
+        const r = el.getBoundingClientRect();
+        if (r.bottom > top + 1 && r.top < bottom - 1) inner.appendChild(el.cloneNode(true));
+      }
+      ghost.style.width = `${content.width}px`;
+      d.ghost = ghost; d.grab = { dx: x - content.left, height: ghost.getBoundingClientRect().height };
+      this.moveGhost();
+    }
+    /** The copy floats just above the fingertip (below it near the top edge),
+     * so neither the finger nor the copy hides the drop line. */
+    moveGhost() {
+      const d = this.drag;
+      if (!d?.ghost) return;
+      const above = d.y - d.grab.height - 28;
+      d.ghost.style.transform = `translate(${d.x - d.grab.dx}px, ${above >= 0 ? above : d.y + 28}px)`;
     }
 
     /** Shade the lines being moved. */
@@ -159,10 +266,11 @@ function blockDragExtension(plugin) {
       Object.assign(d.shade.style, { top: `${top - box.top}px`, height: `${Math.max(4, bottom - top)}px`, left: `${content.left - box.left}px`, width: `${content.width}px` });
     }
 
-    dragTo(e) {
+    dragTo(x, y, pointer) {
       const d = this.drag;
-      if (e.pointerId !== d.pointer) return;
-      d.x = e.clientX; d.y = e.clientY;
+      if (pointer !== undefined && pointer !== d.pointer) return;
+      d.x = x; d.y = y;
+      this.moveGhost();
       this.pick();
     }
 
@@ -195,24 +303,26 @@ function blockDragExtension(plugin) {
       d.frame = win.requestAnimationFrame(() => this.autoscroll());
     }
 
-    finish(e) {
+    /** End the drag; `drop` writes the move, otherwise it is cancelled. */
+    finish(drop, touch = false) {
       const d = this.drag;
-      if (!d || (e && e.pointerId !== d.pointer)) return;
-      const target = e?.type === 'pointerup' ? d.target : null;
+      if (!d) return;
+      const target = drop ? d.target : null;
       this.cancel();
       if (!target) return;
       const view = this.view, current = view.state.doc.toString();
       if (current !== d.text) return;
       const result = moveBlock(current, d.block, target);
       if (!result) return;
-      const change = diff(current, result.text);
-      view.dispatch({ changes: change, userEvent: 'move.drop', scrollIntoView: false });
+      view.dispatch({ changes: diff(current, result.text), userEvent: 'move.drop', scrollIntoView: false });
       const doc = view.state.doc, first = doc.line(Math.min(doc.lines, result.line + 1));
       const effects = [];
       if (d.folded && result.lines > 1) {
         const last = doc.line(Math.min(doc.lines, result.line + result.lines));
         if (last.to > first.to) effects.push(foldEffect.of({ from: first.to, to: last.to }));
       }
+      // On a phone, focusing would raise the keyboard: only fold, keep reading.
+      if (touch) { if (effects.length) view.dispatch({ effects }); return; }
       view.dispatch({ selection: { anchor: first.from }, effects });
       view.focus();
     }
@@ -223,13 +333,16 @@ function blockDragExtension(plugin) {
       this.drag = null;
       const doc = this.view.dom.ownerDocument;
       doc.defaultView?.cancelAnimationFrame(d.frame);
-      d.shade.remove(); d.indicator.remove();
+      d.shade.remove(); d.indicator.remove(); d.ghost?.remove();
       this.handle.classList.remove('is-dragging');
       doc.body.classList.remove('tet-block-dragging');
-      this.handle.removeEventListener('pointerup', this.onUp);
-      this.handle.removeEventListener('pointercancel', this.onUp);
+      if (this.onUp) {
+        this.handle.removeEventListener('pointerup', this.onUp);
+        this.handle.removeEventListener('pointercancel', this.onUp);
+        this.onUp = null;
+      }
       doc.removeEventListener('keydown', this.onKey, true);
-      try { this.handle.releasePointerCapture(d.pointer); } catch { /* already released */ }
+      if (d.pointer !== undefined) try { this.handle.releasePointerCapture(d.pointer); } catch { /* already released */ }
       this.hide();
     }
   });
