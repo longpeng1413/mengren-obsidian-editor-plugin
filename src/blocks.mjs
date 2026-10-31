@@ -40,6 +40,23 @@ function itemEnd(m, k) {
   return end;
 }
 
+/** Indented lines right after a top-level paragraph are its children, as in
+ * wolai: Tab rows, nested lists, indented notes (blank lines between them
+ * included). Returns the last child line, or `end` when there are none. */
+function childrenEnd(m, end) {
+  const n = m.src.length;
+  for (let j = end + 1; j < n;) {
+    if (blank(m.src[j])) {
+      let next = j; while (next < n && blank(m.src[next])) next++;
+      if (next < n && indentOf(m.src[next]) > 0) { j = next; continue; }
+      break;
+    }
+    if (indentOf(m.src[j]) > 0) { end = j++; continue; }
+    break;
+  }
+  return end;
+}
+
 function isParagraphLine(m, i) {
   const s = m.src[i];
   if (i < m.body || blank(s) || m.quotes[i] || m.fenceOf[i] >= 0 || m.indentedCode[i] || m.table[i] || m.continuations[i]) return false;
@@ -101,7 +118,7 @@ function blockAt(text, line, m = model(text)) {
   let from = line, to = line;
   while (from - 1 >= m.body && isParagraphLine(m, from - 1)) from--;
   while (to + 1 < m.src.length && isParagraphLine(m, to + 1)) to++;
-  return { kind: 'paragraph', from, to };
+  return { kind: 'paragraph', from, to: indentOf(m.src[from]) === 0 ? childrenEnd(m, to) : to };
 }
 
 /** End line of the top-level block starting at i, used to enumerate the gaps
@@ -113,7 +130,7 @@ function topEnd(m, i) {
   if (m.fenceOf[i] >= 0) { let j = i; while (j + 1 < n && m.fenceOf[j + 1] === m.fenceOf[i]) j++; return j; }
   for (const run of [m.quotes, m.table]) if (run[i]) { let j = i; while (j + 1 < n && run[j + 1] && !blank(m.src[j + 1])) j++; return j; }
   if (m.indentedCode[i]) { let j = i; while (j + 1 < n && m.indentedCode[j + 1]) j++; while (j > i && blank(m.src[j])) j--; return j; }
-  if (isParagraphLine(m, i)) { let j = i; while (j + 1 < n && isParagraphLine(m, j + 1)) j++; return j; }
+  if (isParagraphLine(m, i)) { let j = i; while (j + 1 < n && isParagraphLine(m, j + 1)) j++; return indentOf(m.src[i]) === 0 ? childrenEnd(m, j) : j; }
   let j = i; while (j + 1 < n && !blank(m.src[j + 1]) && !m.kinds[j + 1].match(/heading|list|image/)) j++;
   return j;
 }
@@ -196,6 +213,7 @@ function moveBlock(text, block, target) {
   } else if (r === rest.length && r > 0 && blank(rest[r - 1])) {
     rest.splice(r - 1, 1); if (t >= r) t--;
   }
+  t = Math.min(t, rest.length);
   const before = t > 0 ? rest[t - 1] : null, after = t < rest.length ? rest[t] : null;
   const nonBlank = s => s !== null && s !== undefined && !blank(s);
   const isFinal = t === rest.length - 1 && after === '';

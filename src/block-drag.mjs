@@ -1,4 +1,5 @@
 import { ViewPlugin } from '@codemirror/view';
+import { MarkdownRenderer, Component, editorInfoField } from 'obsidian';
 import { EditorState } from '@codemirror/state';
 import { foldedRanges, foldEffect } from '@codemirror/language';
 import { model, blockAt, dropTargets, moveBlock } from './blocks.mjs';
@@ -8,7 +9,7 @@ import { model, blockAt, dropTargets, moveBlock } from './blocks.mjs';
  * while not typing: it lifts, follows the finger and drops where the line
  * shows. A heading takes its whole section. One transaction, one undo step. */
 
-const HANDLE_GAP = 24, WIDE_GAP = 40, EDGE = 48;
+const HANDLE_GAP = 24, WIDE_GAP = 40, EDGE = 48, TOUCH_EDGE = 72, CARD_LINES = 40;
 // Under Android's own long-press time, so the block lifts before text selection starts.
 const LONG_PRESS = 300, SLOP = 10;
 
@@ -52,6 +53,8 @@ function blockDragExtension(plugin) {
       view.dom.addEventListener('touchcancel', this.onTouchEnd, { passive: false });
       doc.addEventListener('contextmenu', this.onBlock, true);
       doc.addEventListener('selectstart', this.onBlock, true);
+      // A long-pressed image would otherwise start the system's own image drag.
+      doc.addEventListener('dragstart', this.onBlock, true);
     }
     update(update) {
       if (update.docChanged) { this.cache = null; this.clearPress(); if (!this.drag) this.hide(); return; }
@@ -73,6 +76,7 @@ function blockDragExtension(plugin) {
       view.dom.removeEventListener('touchcancel', this.onTouchEnd);
       doc.removeEventListener('contextmenu', this.onBlock, true);
       doc.removeEventListener('selectstart', this.onBlock, true);
+      doc.removeEventListener('dragstart', this.onBlock, true);
       this.handle.remove();
     }
     enabled() {
@@ -216,7 +220,8 @@ function blockDragExtension(plugin) {
       this.drag.editable = content.getAttribute('contenteditable');
       content.setAttribute('contenteditable', 'false');
       doc.getSelection()?.removeAllRanges();
-      this.ghost(p.x, p.y);
+      this.ghost();
+      this.pick();
       try { doc.defaultView.navigator.vibrate?.(15); } catch { /* no haptics */ }
     }
     touchOf(e) {
@@ -244,31 +249,50 @@ function blockDragExtension(plugin) {
       this.finish(e.type === 'touchend', true);
     }
 
-    /** A floating copy of the block under the finger, as in wolai and Notion. */
-    ghost(x, y) {
-      const d = this.drag, view = this.view, doc = view.dom.ownerDocument;
-      const content = view.contentDOM.getBoundingClientRect(), top = parseFloat(d.shade.style.top) + view.dom.getBoundingClientRect().top;
-      const bottom = top + parseFloat(d.shade.style.height);
-      const ghost = doc.body.appendChild(doc.createElement('div'));
-      ghost.className = 'tet-drag-ghost markdown-source-view mod-cm6 is-live-preview';
-      const inner = ghost.appendChild(doc.createElement('div'));
-      inner.className = 'cm-content';
-      for (const el of view.contentDOM.children) {
-        const r = el.getBoundingClientRect();
-        if (r.bottom > top + 1 && r.top < bottom - 1) inner.appendChild(el.cloneNode(true));
-      }
-      ghost.style.width = `${content.width}px`;
-      d.ghost = ghost; d.grab = { dx: x - content.left };
+    /** The whole block as a floating card under the finger, as in wolai and
+     * Notion: rendered afresh like Reading view, not copied from the editor
+     * (editor lines lose their layout outside it). Long blocks fade out. */
+    ghost() {
+      const d = this.drag, view = this.view, doc = view.dom.ownerDocument, win = doc.defaultView;
+      const content = view.contentDOM.getBoundingClientRect();
+      const card = doc.body.appendChild(doc.createElement('div'));
+      card.className = 'tet-drag-ghost';
+      const body = card.appendChild(doc.createElement('div'));
+      body.className = 'tet-drag-ghost-body markdown-rendered';
+      card.appendChild(doc.createElement('div')).className = 'tet-drag-ghost-hint';
+      card.lastChild.textContent = '松手取消';
+      const width = Math.min(content.width, win.innerWidth - 16);
+      Object.assign(card.style, { width: `${width}px`, left: `${Math.max(8, Math.min(content.left, win.innerWidth - width - 8))}px` });
+      const doc0 = view.state.doc, lines = [];
+      for (let i = d.block.from; i <= d.block.to && lines.length < CARD_LINES; i++) lines.push(doc0.line(i + 1).text);
+      // Render a list item or Tab row at the left margin, not as nested or code.
+      const lead = d.block.kind === 'list' ? d.block.indent : d.block.kind === 'tab' ? /^(?:\t| {4})/ : '';
+      let md = lines.map(l => typeof lead === 'string' ? (l.startsWith(lead) ? l.slice(lead.length) : l) : l.replace(lead, '')).join('\n');
+      if (d.block.to - d.block.from + 1 > CARD_LINES) md += '\n\n…';
+      const component = new Component();
+      component.load();
+      d.card = { el: card, component };
+      try {
+        const path = view.state.field(editorInfoField, false)?.file?.path ?? '';
+        Promise.resolve(MarkdownRenderer.render(plugin.app, md, body, path, component)).catch(() => { body.textContent = md; });
+      } catch { body.textContent = md; }
       this.moveGhost();
     }
-    /** The copy floats just above the fingertip (below it near the top edge),
-     * so neither the finger nor the copy hides the drop line. */
+    /** The card floats just above the fingertip (below it near the top edge),
+     * so neither the finger nor the card hides the drop line. */
     moveGhost() {
-      const d = this.drag;
-      if (!d?.ghost) return;
-      // Anchor the copy's bottom edge: images inside it may still be loading.
-      const above = d.y - d.ghost.offsetHeight - 28 >= 0;
-      d.ghost.style.transform = `translate(${d.x - d.grab.dx}px, ${above ? d.y - 28 : d.y + 28}px)${above ? ' translateY(-100%)' : ''}`;
+      const card = this.drag?.card?.el;
+      if (!card) return;
+      // Anchor the card's bottom edge: images inside it may still be loading.
+      const y = this.drag.y, above = y - card.offsetHeight - 28 >= 0;
+      card.style.transform = above ? `translateY(${y - 28}px) translateY(-100%)` : `translateY(${y + 28}px)`;
+    }
+
+    /** The part of the editor actually on screen (a phone's bars may cover it). */
+    visible() {
+      const r = this.view.scrollDOM.getBoundingClientRect(), win = this.view.dom.ownerDocument.defaultView;
+      const height = win.visualViewport?.height ?? win.innerHeight;
+      return { top: Math.max(r.top, 0), bottom: Math.min(r.bottom, height) };
     }
 
     /** Shade the lines being moved. */
@@ -292,15 +316,19 @@ function blockDragExtension(plugin) {
      * chosen by horizontal position. */
     pick() {
       const d = this.drag, view = this.view, box = view.dom.getBoundingClientRect(), content = view.contentDOM.getBoundingClientRect();
+      // Only positions on screen: a drop the user cannot see is never chosen.
+      const vis = this.visible();
       let best = null;
       for (const t of d.targets) {
         const r = this.row(t.line);
         const y = t.line >= view.state.doc.lines ? r.top : (r.blockTop ?? r.top);
+        if (y < vis.top - 2 || y > vis.bottom + 2) continue;
         const x = t.ref !== undefined && t.ref !== null ? this.row(t.ref).left : content.left + 6;
         const score = Math.abs(d.y - y) * 4 + Math.abs(d.x - (x + 24)) / 8;
         if (!best || score < best.score) best = { t, x, y, score };
       }
       d.target = best?.t || null;
+      d.card?.el.classList.toggle('is-cancel', !best);
       if (!best) { d.indicator.hidden = true; return; }
       Object.assign(d.indicator.style, { top: `${best.y - box.top - 1}px`, left: `${best.x - box.left}px`, width: `${Math.max(40, content.right - best.x)}px` });
       d.indicator.hidden = false;
@@ -311,8 +339,9 @@ function blockDragExtension(plugin) {
     autoscroll() {
       const d = this.drag;
       if (!d) return;
-      const win = this.view.dom.ownerDocument.defaultView, scroller = this.view.scrollDOM, r = scroller.getBoundingClientRect();
-      const step = d.y < r.top + EDGE ? -Math.ceil((r.top + EDGE - d.y) / 4) : d.y > r.bottom - EDGE ? Math.ceil((d.y - r.bottom + EDGE) / 4) : 0;
+      const win = this.view.dom.ownerDocument.defaultView, scroller = this.view.scrollDOM, r = this.visible();
+      const edge = this.touching() ? TOUCH_EDGE : EDGE;
+      const step = d.y < r.top + edge ? -Math.ceil((r.top + edge - d.y) / 4) : d.y > r.bottom - edge ? Math.ceil((d.y - r.bottom + edge) / 4) : 0;
       if (step) { scroller.scrollTop += step; this.pick(); }
       d.frame = win.requestAnimationFrame(() => this.autoscroll());
     }
@@ -347,7 +376,8 @@ function blockDragExtension(plugin) {
       this.drag = null;
       const doc = this.view.dom.ownerDocument;
       doc.defaultView?.cancelAnimationFrame(d.frame);
-      d.shade.remove(); d.indicator.remove(); d.ghost?.remove();
+      d.shade.remove(); d.indicator.remove();
+      if (d.card) { d.card.el.remove(); d.card.component.unload(); }
       if (d.editable !== undefined && d.editable !== null) this.view.contentDOM.setAttribute('contenteditable', d.editable);
       this.handle.classList.remove('is-dragging');
       doc.body.classList.remove('tet-block-dragging');

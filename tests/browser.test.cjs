@@ -1072,7 +1072,7 @@ async function touchPage() {
   await p.route('https://fixture.invalid/**',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="#d8eaff"/></svg>'}));
   // Obsidian mobile lays out at device width, like any phone page with this tag.
   await p.setContent('<html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body></body></html>');
-  await p.addStyleTag({content:page.css});
+  await p.addStyleTag({content:page.css+'body{padding:16px}.cm-editor{width:auto}'});
   await p.addScriptTag({content:page.bundle});
   const cdp=await context.newCDPSession(p);
   const touch=(type,x,y)=>cdp.send('Input.dispatchTouchEvent',{type,touchPoints:type==='touchEnd'?[]:[{x,y}]});
@@ -1093,7 +1093,10 @@ test('touch: long-press lifts a block, it follows the finger and drops at the li
     assert.equal(await p.evaluate(()=>fixture.cm.contentDOM.getAttribute('contenteditable')),'false');
     // Aim with the editor's measured heights (an image widget is measured lazily).
     const to=(await y(19))+1;
-    assert.ok((await p.locator('.tet-drag-ghost').textContent()).includes('甲'));
+    // The card shows the whole block (heading, list, nested items) at text width.
+    const card=await p.locator('.tet-drag-ghost').textContent();
+    for(const part of ['甲','a1','a2','b']) assert.ok(card.includes(part),`card has ${part}: ${card}`);
+    assert.ok((await p.locator('.tet-drag-ghost').boundingBox()).width>300);
     for(let i=1;i<=6;i++){await touch('touchMove',x0,from+(to-from)*i/6);await p.waitForTimeout(16);}
     assert.equal(await p.locator('.tet-drop-indicator').isVisible(),true);
     await p.screenshot({path:path.join(work,'block-drag-touch.png'),clip:{x:0,y:0,width:420,height:700}});
@@ -1133,5 +1136,51 @@ test('touch: a quick swipe scrolls instead; long-press lifts while typing unless
     await touch('touchStart',x0,from);await p.waitForTimeout(450);
     assert.equal(await p.locator('.tet-drag-ghost').count(),0,'setting off');
     await touch('touchEnd');
+  } finally { await context.close(); }
+});
+
+test('touch: a drop position off screen is never chosen; with none on screen, releasing cancels',async()=>{
+  const {p,context,touch,y,x}=await touchPage();
+  try {
+    const doc=['# 一','','开头','','# 二',''].concat(...Array.from({length:80},(_,i)=>[`第${i}段`,''])).concat(['# 三','','尾','']).join('\n');
+    // The editor scrolls inside its own pane, as in Obsidian.
+    await p.addStyleTag({content:'.cm-editor{height:1200px}'});
+    await p.evaluate(t=>window.setup(t),doc);await p.waitForTimeout(100);
+    assert.equal(await p.evaluate(()=>innerHeight),1600,'phone page at device width');
+    const x0=await x();
+    await touch('touchStart',x0,(await y(5))+6);await p.waitForTimeout(450);
+    assert.equal(await p.locator('.tet-drag-ghost').count(),1);
+    // Scroll the pane: this heading is now above the screen, the next one far below.
+    await p.evaluate(()=>{const cm=fixture.cm;cm.scrollDOM.scrollTop=cm.lineBlockAt(cm.state.doc.line(5).from).top+300;});
+    await p.waitForTimeout(50);
+    for(let i=1;i<=4;i++){await touch('touchMove',x0,500+i*40);await p.waitForTimeout(16);}
+    assert.equal(await p.locator('.tet-drop-indicator').isHidden(),true,'no line drawn off screen');
+    assert.equal(await p.locator('.tet-drag-ghost.is-cancel').count(),1,'card says release cancels');
+    assert.ok((await p.locator('.tet-drag-ghost-hint').textContent()).includes('松手取消'));
+    await touch('touchEnd');await p.waitForTimeout(60);
+    assert.equal(await p.evaluate(()=>fixture.text()),doc);
+    assert.equal(await p.locator('.tet-drag-ghost').count(),0);
+  } finally { await context.close(); }
+});
+test('touch: tapping an image opens resizing, long-pressing it drags it',async()=>{
+  const {p,context,touch,y,x}=await touchPage();
+  try {
+    const doc='段落一\n\n![[图.png]]\n\n段落二\n';
+    await p.evaluate(t=>window.setup(t),doc);
+    await p.waitForFunction(()=>[...document.images].every(i=>i.complete));await p.waitForTimeout(100);
+    const img=await p.locator('img').boundingBox(),cx=img.x+img.width/2,cy=img.y+img.height/2;
+    await touch('touchStart',cx,cy);await p.waitForTimeout(80);await touch('touchEnd');
+    await p.waitForSelector('.tet-resize-overlay');
+    assert.equal(await p.locator('.tet-drag-ghost').count(),0);
+    await p.keyboard.press('Escape');await p.waitForTimeout(40);
+    assert.equal(await p.locator('.tet-resize-overlay').count(),0);
+    await touch('touchStart',cx,cy);await p.waitForTimeout(450);
+    assert.equal(await p.locator('.tet-drag-ghost').count(),1,'long press lifts the image');
+    assert.equal(await p.locator('.tet-resize-overlay').count(),0,'no resize handles on a long press');
+    const to=(await y(5))+((await y(6))-(await y(5)))/2+1, x0=await x();
+    for(let i=1;i<=5;i++){await touch('touchMove',x0,cy+(to-cy)*i/5);await p.waitForTimeout(16);}
+    await touch('touchEnd');await p.waitForTimeout(60);
+    assert.equal(await p.evaluate(()=>fixture.text()),'段落一\n\n段落二\n\n![[图.png]]\n');
+    assert.equal(await p.locator('.tet-resize-overlay').count(),0);
   } finally { await context.close(); }
 });

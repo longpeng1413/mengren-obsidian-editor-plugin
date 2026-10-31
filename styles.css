@@ -358,21 +358,40 @@ body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-h3.t
 }
 .tet-drop-indicator[hidden] { display: none; }
 body.tet-block-dragging, body.tet-block-dragging * { cursor: grabbing !important; user-select: none !important; -webkit-user-select: none !important; -webkit-touch-callout: none !important; }
-/* Touch: the lifted block floats under the finger. */
+body.tet-block-dragging img { -webkit-user-drag: none; }
+/* Touch: the lifted block floats as a card above the finger. */
 .tet-drag-ghost {
   position: fixed;
   top: 0;
-  left: 0;
   z-index: var(--layer-dragged-item, 1000);
-  max-height: 30vh;
+  max-height: 40vh;
   overflow: hidden;
-  padding: 4px 0;
+  border: 1px solid var(--background-modifier-border, rgba(127, 127, 127, 0.3));
   border-radius: 8px;
   background-color: var(--background-primary, #fff);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-  opacity: 0.9;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   pointer-events: none;
   will-change: transform;
 }
-.tet-drag-ghost .cm-content { padding: 0 !important; }
+.tet-drag-ghost-body {
+  padding: 6px 12px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(40vh - 48px), transparent 40vh);
+  mask-image: linear-gradient(to bottom, #000 calc(40vh - 48px), transparent 40vh);
+}
+.tet-drag-ghost-body > :first-child { margin-top: 0; }
+.tet-drag-ghost-body > :last-child { margin-bottom: 0; }
+.tet-drag-ghost-hint { display: none; }
+/* No drop position on screen: releasing cancels, and the card says so. */
+.tet-drag-ghost.is-cancel { opacity: 0.55; }
+.tet-drag-ghost.is-cancel .tet-drag-ghost-hint {
+  display: block;
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--text-on-accent, #fff);
+  background-color: var(--interactive-accent, #7b6cd9);
+}
 @media print { .tet-drag-handle, .tet-drag-source, .tet-drop-indicator, .tet-drag-ghost { display: none !important; } }
