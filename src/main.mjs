@@ -167,7 +167,7 @@ class TraderSettings extends PluginSettingTab {
     toggle('保存原文备份','格式化、阅读模式图片写回前，在本插件 backups 目录保存原文。备份不会自动删除。','backupEnabled');
     new Setting(el).setName('备份位置').setDesc(`${p.app.vault.configDir}/plugins/${p.manifest.id}/backups/`);
     new Setting(el).setName('拖动移动块').setHeading();
-    toggle('启用拖动移动块','编辑模式里鼠标移到标题、正文、列表项或图片左边，出现六个点的把手，按住拖到别处再松手。标题连同它下面的整节一起移动（折叠着也一样）；列表项带着子条目，放到哪里就跟那里的列表同级；正文按段移动；会自动补好前后的空行。一次拖动一次撤销（Ctrl+Z），拖动中按 Esc 取消。暂不支持手机和阅读模式。','blockDrag');
+    toggle('启用拖动移动块','编辑模式里移动标题、正文、列表项、图片、代码块、引用、提示框、表格。电脑：鼠标移到块左边出现六个点的把手，按住拖到别处再松手。手机：没在打字时（键盘收起）长按一块，它浮起来跟着手指走，紫色的线是放下的位置；正在打字时长按仍是选字。标题连同下面整节一起移动（折叠着也一样）；列表项带着子条目，放到哪里就跟那里的列表同级；会自动补好前后的空行。一次拖动一次撤销（Ctrl+Z），电脑上拖动中按 Esc 取消。阅读模式不能拖。','blockDrag');
     new Setting(el).setName('图片拖拽缩放').setHeading();
     toggle('启用图片拖拽','点击图片出现四角控制点；拖动默认保持比例，Alt 自由调整，Esc 取消。','imageResize');
     toggle('允许阅读模式调整','阅读模式调整也会写回 Markdown；没有编辑窗格时先保存原文备份。','readingResize');

@@ -15,8 +15,9 @@ before(async()=>{
   browser=await chromium.launch({executablePath:process.env.TET_BROWSER || 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',headless:true});
   page=await browser.newPage({viewport:{width:1200,height:900}});
   await page.route('https://fixture.invalid/**',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="#d8eaff"/><text x="20" y="50" font-size="20">Trader Chart</text></svg>'}));
+  page.bundle=bundle.outputFiles[0].text;
   await page.setContent('<html><head></head><body></body></html>');
-  await page.addStyleTag({content:fs.readFileSync(path.join(root,'styles.css'),'utf8')+'body{font:16px sans-serif;padding:40px;background:#fff;color:#202020}.cm-editor{border:1px solid #ddd;width:800px}.cm-content{padding:20px}.markdown-preview-view{width:800px}.modal{position:fixed;inset:60px 180px;background:white;z-index:2000;padding:24px;overflow:auto;border:1px solid #ccc}.setting-item{display:flex;justify-content:space-between;gap:15px;margin:10px 0}'});
+  await page.addStyleTag({content:page.css=fs.readFileSync(path.join(root,'styles.css'),'utf8')+'body{font:16px sans-serif;padding:40px;background:#fff;color:#202020}.cm-editor{border:1px solid #ddd;width:800px}.cm-content{padding:20px}.markdown-preview-view{width:800px}.modal{position:fixed;inset:60px 180px;background:white;z-index:2000;padding:24px;overflow:auto;border:1px solid #ccc}.setting-item{display:flex;justify-content:space-between;gap:15px;margin:10px 0}'});
   await page.addScriptTag({content:bundle.outputFiles[0].text});
 });
 after(async()=>{await browser?.close();});
@@ -1034,4 +1035,83 @@ test('a folded heading section moves whole and stays folded',async()=>{
   await dragBlock(6,19);
   assert.equal(await page.evaluate(()=>fixture.text()),'# 一\n\n段落一\n续行\n\n## 乙\n\n正文乙\n\n## 甲\n\n- a\n\t- a1\n\t- a2\n- b\n\n![[图.png]]\n\n# 二\n\n尾段\n');
   assert.deepEqual(await page.evaluate(()=>fixture.folds()),[[10,17]]);
+});
+
+test('code blocks, quotes and tables get a handle and drag whole',async()=>{
+  const doc=['正文','','```js','let a=1','```','','> 引用一','> 续','','| a | b |','| --- | --- |','| 1 | 2 |','','尾',''].join('\n');
+  await setup(doc);
+  for(const [line,kind] of [[3,'code'],[4,'code'],[7,'quote'],[10,'table']]) {
+    await hoverLine(line);
+    assert.equal(await page.locator('.tet-drag-handle').getAttribute('data-kind'),kind,`line ${line}`);
+  }
+  await dragBlock(10,1);
+  assert.equal(await page.evaluate(()=>fixture.text()),'| a | b |\n| --- | --- |\n| 1 | 2 |\n\n正文\n\n```js\nlet a=1\n```\n\n> 引用一\n> 续\n\n尾\n');
+  await setup(doc);
+  await dragBlock(3,14);
+  assert.equal(await page.evaluate(()=>fixture.text()),'正文\n\n> 引用一\n> 续\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n```js\nlet a=1\n```\n\n尾\n');
+  await setup(doc);
+  await dragBlock(7,1);
+  assert.equal(await page.evaluate(()=>fixture.text()),'> 引用一\n> 续\n\n正文\n\n```js\nlet a=1\n```\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n尾\n');
+});
+
+// Phones: a touch page with real touch events sent through the DevTools protocol.
+async function touchPage() {
+  const context=await browser.newContext({viewport:{width:420,height:1600},hasTouch:true,isMobile:true});
+  const p=await context.newPage();
+  await p.route('https://fixture.invalid/**',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="#d8eaff"/></svg>'}));
+  // Obsidian mobile lays out at device width, like any phone page with this tag.
+  await p.setContent('<html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body></body></html>');
+  await p.addStyleTag({content:page.css});
+  await p.addScriptTag({content:page.bundle});
+  const cdp=await context.newCDPSession(p);
+  const touch=(type,x,y)=>cdp.send('Input.dispatchTouchEvent',{type,touchPoints:type==='touchEnd'?[]:[{x,y}]});
+  const y=n=>p.evaluate(n=>{const cm=fixture.cm,doc=cm.state.doc;const b=n>doc.lines?cm.lineBlockAt(doc.length):cm.lineBlockAt(doc.line(n).from);return cm.documentTop+(n>doc.lines?b.bottom:b.top);},n);
+  const x=()=>p.evaluate(()=>fixture.cm.contentDOM.getBoundingClientRect().left+40);
+  return {p,context,touch,y,x};
+}
+test('touch: long-press lifts a block, it follows the finger and drops at the line',async()=>{
+  const {p,context,touch,y,x}=await touchPage();
+  try {
+    await p.evaluate(t=>window.setup(t),dragDoc);
+    // Let the image load first: it pushes the lines below it down.
+    await p.waitForFunction(()=>[...document.images].every(i=>i.complete));await p.waitForTimeout(100);
+    const x0=await x(),from=(await y(6))+6;
+    await touch('touchStart',x0,from);await p.waitForTimeout(450);
+    assert.equal(await p.locator('.tet-drag-ghost').count(),1,'block lifted');
+    // Aim with the editor's measured heights (an image widget is measured lazily).
+    const to=(await y(19))+1;
+    assert.ok((await p.locator('.tet-drag-ghost').textContent()).includes('甲'));
+    for(let i=1;i<=6;i++){await touch('touchMove',x0,from+(to-from)*i/6);await p.waitForTimeout(16);}
+    assert.equal(await p.locator('.tet-drop-indicator').isVisible(),true);
+    await p.screenshot({path:path.join(work,'block-drag-touch.png'),clip:{x:0,y:0,width:420,height:700}});
+    const ghost=await p.locator('.tet-drag-ghost').boundingBox();
+    assert.ok(ghost.y+ghost.height<=to-20 && ghost.y+ghost.height>to-60,`ghost floats just above the finger: ${ghost.y}+${ghost.height} vs ${to}`);
+    await touch('touchEnd');await p.waitForTimeout(60);
+    assert.equal(await p.evaluate(()=>fixture.text()),'# 一\n\n段落一\n续行\n\n## 乙\n\n正文乙\n\n## 甲\n\n- a\n\t- a1\n\t- a2\n- b\n\n![[图.png]]\n\n# 二\n\n尾段\n');
+    assert.equal(await p.locator('.tet-drag-ghost').count(),0);
+    // No keyboard: the editor is not focused by a drop.
+    assert.equal(await p.evaluate(()=>fixture.cm.hasFocus),false);
+    await p.evaluate(()=>fixture.undo());
+    assert.equal(await p.evaluate(()=>fixture.text()),dragDoc);
+  } finally { await context.close(); }
+});
+test('touch: a quick swipe scrolls instead, and long-press while typing keeps text selection',async()=>{
+  const {p,context,touch,y,x}=await touchPage();
+  try {
+    await p.evaluate(t=>window.setup(t),dragDoc);await p.waitForTimeout(100);
+    const x0=await x(),from=(await y(3))+6;
+    await touch('touchStart',x0,from);await p.waitForTimeout(60);
+    await touch('touchMove',x0,from+40);await p.waitForTimeout(400);
+    assert.equal(await p.locator('.tet-drag-ghost').count(),0,'moved before the long press: no lift');
+    await touch('touchEnd');await p.waitForTimeout(40);
+    assert.equal(await p.evaluate(()=>fixture.text()),dragDoc);
+    await p.evaluate(()=>fixture.cm.focus());
+    await touch('touchStart',x0,from);await p.waitForTimeout(450);
+    assert.equal(await p.locator('.tet-drag-ghost').count(),0,'typing: long press is left to the system');
+    await touch('touchEnd');
+    await p.evaluate(()=>{fixture.cm.contentDOM.blur();fixture.plugin.settings.blockDrag=false;});
+    await touch('touchStart',x0,from);await p.waitForTimeout(450);
+    assert.equal(await p.locator('.tet-drag-ghost').count(),0,'setting off');
+    await touch('touchEnd');
+  } finally { await context.close(); }
 });

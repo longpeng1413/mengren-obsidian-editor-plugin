@@ -63,6 +63,26 @@ function blockAt(text, line, m = model(text)) {
   if (s === undefined || line < m.body || blank(s)) return null;
   if (m.kinds[line] === 'heading' && !m.quotes[line]) return { kind: 'heading', from: line, to: headingEnd(m, line), level: headingLevel(s) };
   if (m.kinds[line] === 'image' && !m.quotes[line]) return { kind: 'image', from: line, to: line };
+  // Unindented code fences, quotes / Callouts and tables move whole; indented
+  // ones belong to the list item they sit in.
+  const run = (flag, from = line, to = line) => {
+    while (from - 1 >= m.body && flag(from - 1)) from--;
+    while (to + 1 < m.src.length && flag(to + 1)) to++;
+    return [from, to];
+  };
+  const fence = m.fenceOf[line];
+  if (fence >= 0 && !/^[ \t]/.test(m.src[fence])) {
+    const [, to] = run(j => m.fenceOf[j] === fence, fence);
+    return { kind: 'code', from: fence, to };
+  }
+  if (m.quotes[line]) {
+    const [from, to] = run(j => m.quotes[j]);
+    if (/^>/.test(m.src[from])) return { kind: /^>\s*\[![^\]]*\]/.test(m.src[from]) ? 'callout' : 'quote', from, to };
+  }
+  if (m.table[line]) {
+    const [from, to] = run(j => m.table[j]);
+    if (!/^[ \t]/.test(m.src[from])) return { kind: 'table', from, to };
+  }
   // Innermost list item containing the line: walk up to its marker line.
   for (let k = line; k >= m.body && line - k < 5000; k--) {
     if (isListStart(m, k)) {

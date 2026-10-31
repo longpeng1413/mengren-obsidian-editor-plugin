@@ -361,10 +361,25 @@ test('drag blocks: heading carries its section, list item its children, paragrap
   assert.equal(at(1),null);
   // Lazy continuation lines belong to the list item above them.
   assert.deepEqual(blockAt('- a\n续写\n\n正文',1),{kind:'list',from:0,to:1,indent:''});
-  // Front matter, fences and quotes are not draggable.
+  // Front matter is never draggable.
   assert.equal(blockAt('---\na: 1\n---\n正文',1),null);
-  assert.equal(blockAt('```\n代码\n```',1),null);
-  assert.equal(blockAt('> 引用',0),null);
+});
+test('drag blocks: code fences, quotes, Callouts and tables move whole; indented ones stay with their list item',()=>{
+  const t=['正文','','```js','let a=1','','b()','```','','> 引用一','> 续','>','> 段二','','> [!note] 标题','> 内容','','| a | b |','| --- | --- |','| 1 | 2 |','','- 项','  > 列表里的引用','  ```','  代码','  ```','','尾'].join('\n');
+  const at=l=>{const b=blockAt(t,l);return b&&[b.kind,b.from,b.to];};
+  assert.deepEqual(at(3),['code',2,6]);assert.deepEqual(at(6),['code',2,6]);
+  assert.deepEqual(at(10),['quote',8,11]);
+  assert.deepEqual(at(14),['callout',13,14]);
+  assert.deepEqual(at(17),['table',16,18]);
+  assert.deepEqual(at(21),['list',20,24]);assert.deepEqual(at(23),['list',20,24]);
+  assert.equal(at(4),null);
+  assert.deepEqual(dropTargets(t,blockAt(t,9)).map(x=>x.line),[0,2,8,13,16,20,26,27]);
+  const move=(line,target)=>moveBlock(t,blockAt(t,line),{line:target}).text;
+  assert.equal(move(3,0),'```js\nlet a=1\n\nb()\n```\n\n正文\n\n> 引用一\n> 续\n>\n> 段二\n\n> [!note] 标题\n> 内容\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n- 项\n  > 列表里的引用\n  ```\n  代码\n  ```\n\n尾');
+  assert.equal(move(17,2),'正文\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n```js\nlet a=1\n\nb()\n```\n\n> 引用一\n> 续\n>\n> 段二\n\n> [!note] 标题\n> 内容\n\n- 项\n  > 列表里的引用\n  ```\n  代码\n  ```\n\n尾');
+  assert.equal(move(14,26),'正文\n\n```js\nlet a=1\n\nb()\n```\n\n> 引用一\n> 续\n>\n> 段二\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n- 项\n  > 列表里的引用\n  ```\n  代码\n  ```\n\n> [!note] 标题\n> 内容\n\n尾');
+  // A quote dropped right after a paragraph gets its blank line, so it never becomes lazy text.
+  assert.equal(moveBlock('段落\n\n尾\n\n> 引',blockAt('段落\n\n尾\n\n> 引',4),{line:2}).text,'段落\n\n> 引\n\n尾');
 });
 test('drag blocks: headings drop only before headings or at the end, never inside themselves',()=>{
   assert.deepEqual(dropTargets(blockDoc,blockAt(blockDoc,5)).map(t=>t.line),[0,5,14,18,21]);
