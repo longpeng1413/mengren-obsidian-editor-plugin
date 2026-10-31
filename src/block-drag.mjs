@@ -9,7 +9,8 @@ import { model, blockAt, dropTargets, moveBlock } from './blocks.mjs';
  * shows. A heading takes its whole section. One transaction, one undo step. */
 
 const HANDLE_GAP = 24, WIDE_GAP = 40, EDGE = 48;
-const LONG_PRESS = 350, SLOP = 10;
+// Under Android's own long-press time, so the block lifts before text selection starts.
+const LONG_PRESS = 300, SLOP = 10;
 
 /** Smallest single change turning `a` into `b`, so undo and decorations only
  * see the moved region. */
@@ -131,6 +132,11 @@ function blockDragExtension(plugin) {
       // Headings and list items have Obsidian's fold arrow at their left, tables
       // their row handles: stay clear of them.
       const gap = /^(heading|list|table)$/.test(block.kind) ? WIDE_GAP : HANDLE_GAP;
+      // Tab rows are drawn as a box from the line start: put the handle outside it.
+      if (block.kind === 'tab') {
+        const start = this.view.coordsAtPos(this.view.state.doc.line(block.from + 1).from, 1);
+        if (start) r.left = Math.min(r.left, start.left);
+      }
       const style = { top: `${(r.top + r.bottom) / 2 - 11 - box.top}px`, left: `${r.left - gap - box.left}px` };
       if (!read) Object.assign(this.handle.style, style);
       return style;
@@ -180,11 +186,13 @@ function blockDragExtension(plugin) {
       return true;
     }
 
-    /** Touch: a long press on a block lifts it, unless the editor is being
-     * typed in (then a long press selects text as usual). */
+    /** Touch: a long press on a block lifts it (while typing too, unless the
+     * setting keeps long press for text selection). */
     touchStart(e) {
       this.clearPress();
-      if (this.drag || e.touches.length !== 1 || !this.enabled() || this.view.hasFocus) return;
+      if (this.drag || e.touches.length !== 1 || !this.enabled()) return;
+      // Optional: while typing, a long press keeps selecting text.
+      if (this.view.hasFocus && plugin.settings.touchSelectWhileTyping) return;
       const t = e.touches[0], block = this.blockAtY(t.clientY);
       if (!block) return;
       const win = this.view.dom.ownerDocument.defaultView;
@@ -200,9 +208,14 @@ function blockDragExtension(plugin) {
       const p = this.press;
       if (!p || this.view.state.doc.toString() !== this.model().text) return this.clearPress();
       const doc = this.view.dom.ownerDocument;
-      doc.getSelection()?.removeAllRanges();
       if (!this.begin(p.block, p.x, p.y, { touch: p.id })) return this.clearPress();
       this.press = null;
+      // Nothing editable or selectable while a block is lifted: the system's own
+      // long press (selection handles, copy/paste menu) finds no text to act on.
+      const content = this.view.contentDOM;
+      this.drag.editable = content.getAttribute('contenteditable');
+      content.setAttribute('contenteditable', 'false');
+      doc.getSelection()?.removeAllRanges();
       this.ghost(p.x, p.y);
       try { doc.defaultView.navigator.vibrate?.(15); } catch { /* no haptics */ }
     }
@@ -335,6 +348,7 @@ function blockDragExtension(plugin) {
       const doc = this.view.dom.ownerDocument;
       doc.defaultView?.cancelAnimationFrame(d.frame);
       d.shade.remove(); d.indicator.remove(); d.ghost?.remove();
+      if (d.editable !== undefined && d.editable !== null) this.view.contentDOM.setAttribute('contenteditable', d.editable);
       this.handle.classList.remove('is-dragging');
       doc.body.classList.remove('tet-block-dragging');
       if (this.onUp) {

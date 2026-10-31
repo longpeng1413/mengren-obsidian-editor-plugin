@@ -83,6 +83,12 @@ function blockAt(text, line, m = model(text)) {
     const [from, to] = run(j => m.table[j]);
     if (!/^[ \t]/.test(m.src[from])) return { kind: 'table', from, to };
   }
+  // A run of Tab knowledge rows / indented code (blank lines inside belong to it).
+  if (m.indentedCode[line]) {
+    let [from, to] = run(j => m.indentedCode[j]);
+    while (to > from && blank(m.src[to])) to--;
+    return { kind: 'tab', from, to };
+  }
   // Innermost list item containing the line: walk up to its marker line.
   for (let k = line; k >= m.body && line - k < 5000; k--) {
     if (isListStart(m, k)) {
@@ -105,7 +111,8 @@ function topEnd(m, i) {
   if (m.kinds[i] === 'heading' || m.kinds[i] === 'image') return i;
   if (isListStart(m, i)) return itemEnd(m, i);
   if (m.fenceOf[i] >= 0) { let j = i; while (j + 1 < n && m.fenceOf[j + 1] === m.fenceOf[i]) j++; return j; }
-  for (const run of [m.quotes, m.table, m.indentedCode]) if (run[i]) { let j = i; while (j + 1 < n && run[j + 1] && !blank(m.src[j + 1])) j++; return j; }
+  for (const run of [m.quotes, m.table]) if (run[i]) { let j = i; while (j + 1 < n && run[j + 1] && !blank(m.src[j + 1])) j++; return j; }
+  if (m.indentedCode[i]) { let j = i; while (j + 1 < n && m.indentedCode[j + 1]) j++; while (j > i && blank(m.src[j])) j--; return j; }
   if (isParagraphLine(m, i)) { let j = i; while (j + 1 < n && isParagraphLine(m, j + 1)) j++; return j; }
   let j = i; while (j + 1 < n && !blank(m.src[j + 1]) && !m.kinds[j + 1].match(/heading|list|image/)) j++;
   return j;

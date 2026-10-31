@@ -1052,6 +1052,17 @@ test('code blocks, quotes and tables get a handle and drag whole',async()=>{
   await setup(doc);
   await dragBlock(7,1);
   assert.equal(await page.evaluate(()=>fixture.text()),'> 引用一\n> 续\n\n正文\n\n```js\nlet a=1\n```\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n尾\n');
+  // Tab knowledge row: handle outside its grey box, drags like a block.
+  await setup('正文\n\n\t对我有用的就有价值\n\n尾\n');
+  await hoverLine(3);
+  assert.equal(await page.locator('.tet-drag-handle').getAttribute('data-kind'),'tab');
+  const handle=await page.locator('.tet-drag-handle').boundingBox(),row=await page.locator('.tet-tab-knowledge-line').boundingBox();
+  assert.ok(handle.x+handle.width<=row.x+2,`handle ${handle.x}+${handle.width} left of the box ${row.x}`);
+  await dragBlock(3,1);
+  assert.equal(await page.evaluate(()=>fixture.text()),'\t对我有用的就有价值\n\n正文\n\n尾\n');
+  await setup(doc);
+  await dragBlock(7,1);
+  assert.equal(await page.evaluate(()=>fixture.text()),'> 引用一\n> 续\n\n正文\n\n```js\nlet a=1\n```\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n尾\n');
 });
 
 // Phones: a touch page with real touch events sent through the DevTools protocol.
@@ -1078,6 +1089,8 @@ test('touch: long-press lifts a block, it follows the finger and drops at the li
     const x0=await x(),from=(await y(6))+6;
     await touch('touchStart',x0,from);await p.waitForTimeout(450);
     assert.equal(await p.locator('.tet-drag-ghost').count(),1,'block lifted');
+    // Lifted: nothing selectable, so the system's long-press selection has nothing to grab.
+    assert.equal(await p.evaluate(()=>fixture.cm.contentDOM.getAttribute('contenteditable')),'false');
     // Aim with the editor's measured heights (an image widget is measured lazily).
     const to=(await y(19))+1;
     assert.ok((await p.locator('.tet-drag-ghost').textContent()).includes('甲'));
@@ -1089,13 +1102,14 @@ test('touch: long-press lifts a block, it follows the finger and drops at the li
     await touch('touchEnd');await p.waitForTimeout(60);
     assert.equal(await p.evaluate(()=>fixture.text()),'# 一\n\n段落一\n续行\n\n## 乙\n\n正文乙\n\n## 甲\n\n- a\n\t- a1\n\t- a2\n- b\n\n![[图.png]]\n\n# 二\n\n尾段\n');
     assert.equal(await p.locator('.tet-drag-ghost').count(),0);
-    // No keyboard: the editor is not focused by a drop.
+    // No keyboard: the editor is not focused by a drop, and it is editable again.
+    assert.equal(await p.evaluate(()=>fixture.cm.contentDOM.getAttribute('contenteditable')),'true');
     assert.equal(await p.evaluate(()=>fixture.cm.hasFocus),false);
     await p.evaluate(()=>fixture.undo());
     assert.equal(await p.evaluate(()=>fixture.text()),dragDoc);
   } finally { await context.close(); }
 });
-test('touch: a quick swipe scrolls instead, and long-press while typing keeps text selection',async()=>{
+test('touch: a quick swipe scrolls instead; long-press lifts while typing unless the setting keeps it for selection',async()=>{
   const {p,context,touch,y,x}=await touchPage();
   try {
     await p.evaluate(t=>window.setup(t),dragDoc);await p.waitForTimeout(100);
@@ -1107,7 +1121,13 @@ test('touch: a quick swipe scrolls instead, and long-press while typing keeps te
     assert.equal(await p.evaluate(()=>fixture.text()),dragDoc);
     await p.evaluate(()=>fixture.cm.focus());
     await touch('touchStart',x0,from);await p.waitForTimeout(450);
-    assert.equal(await p.locator('.tet-drag-ghost').count(),0,'typing: long press is left to the system');
+    assert.equal(await p.locator('.tet-drag-ghost').count(),1,'typing: long press lifts by default');
+    await touch('touchEnd');await p.waitForTimeout(40);
+    assert.equal(await p.evaluate(()=>fixture.text()),dragDoc,'dropped where it was: nothing changes');
+    assert.equal(await p.evaluate(()=>fixture.cm.contentDOM.getAttribute('contenteditable')),'true');
+    await p.evaluate(()=>{fixture.plugin.settings.touchSelectWhileTyping=true;fixture.cm.focus();});
+    await touch('touchStart',x0,from);await p.waitForTimeout(450);
+    assert.equal(await p.locator('.tet-drag-ghost').count(),0,'setting on: typing long press is left to the system');
     await touch('touchEnd');
     await p.evaluate(()=>{fixture.cm.contentDOM.blur();fixture.plugin.settings.blockDrag=false;});
     await touch('touchStart',x0,from);await p.waitForTimeout(450);
