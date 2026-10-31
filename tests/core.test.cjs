@@ -378,6 +378,11 @@ test('drag blocks: code fences, quotes, Callouts and tables move whole; indented
   assert.equal(move(3,0),'```js\nlet a=1\n\nb()\n```\n\n正文\n\n> 引用一\n> 续\n>\n> 段二\n\n> [!note] 标题\n> 内容\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n- 项\n  > 列表里的引用\n  ```\n  代码\n  ```\n\n尾');
   assert.equal(move(17,2),'正文\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n```js\nlet a=1\n\nb()\n```\n\n> 引用一\n> 续\n>\n> 段二\n\n> [!note] 标题\n> 内容\n\n- 项\n  > 列表里的引用\n  ```\n  代码\n  ```\n\n尾');
   assert.equal(move(14,26),'正文\n\n```js\nlet a=1\n\nb()\n```\n\n> 引用一\n> 续\n>\n> 段二\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n- 项\n  > 列表里的引用\n  ```\n  代码\n  ```\n\n> [!note] 标题\n> 内容\n\n尾');
+  // Tab knowledge rows move as one run, blank lines inside included.
+  const tab='A\n\n\t知识一\n\n\t知识二\n\nB';
+  assert.deepEqual(blockAt(tab,4),{kind:'tab',from:2,to:4});
+  assert.equal(moveBlock(tab,blockAt(tab,2),{line:7}).text,'A\n\nB\n\n\t知识一\n\n\t知识二');
+  assert.equal(moveBlock(tab,blockAt(tab,2),{line:0}).text,'\t知识一\n\n\t知识二\n\nA\n\nB');
   // A quote dropped right after a paragraph gets its blank line, so it never becomes lazy text.
   assert.equal(moveBlock('段落\n\n尾\n\n> 引',blockAt('段落\n\n尾\n\n> 引',4),{line:2}).text,'段落\n\n> 引\n\n尾');
 });
