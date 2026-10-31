@@ -313,3 +313,49 @@ body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-h3.t
   body.tet-enabled :is(.markdown-preview-view,.markdown-rendered) :is(td,th) :is(img,svg.excalidraw-svg) { max-width:100%; }
   body.tet-enabled mark { print-color-adjust:exact;-webkit-print-color-adjust:exact; }
 }
+/* Drag-to-move blocks: handle at the left of the hovered block, a shade over
+   the lines being moved and a line where they will land. Screen only. */
+.tet-drag-handle {
+  position: absolute;
+  z-index: 5;
+  width: 18px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: var(--text-faint, #999);
+  cursor: grab;
+  touch-action: none;
+}
+.tet-drag-handle[hidden] { display: none; }
+.tet-drag-dots {
+  width: 8px;
+  height: 14px;
+  background-image: radial-gradient(circle, currentColor 1.4px, transparent 1.6px);
+  background-size: 4px 4.67px;
+  background-position: 0 0;
+}
+.tet-drag-handle:hover, .tet-drag-handle.is-dragging {
+  color: var(--text-muted, #666);
+  background-color: var(--background-modifier-hover, rgba(127, 127, 127, 0.15));
+}
+.tet-drag-source {
+  position: absolute;
+  z-index: 4;
+  border-radius: 4px;
+  background-color: var(--background-modifier-hover, rgba(127, 127, 127, 0.15));
+  opacity: 0.6;
+  pointer-events: none;
+}
+.tet-drop-indicator {
+  position: absolute;
+  z-index: 6;
+  height: 2px;
+  border-radius: 1px;
+  background-color: var(--interactive-accent, #7b6cd9);
+  pointer-events: none;
+}
+.tet-drop-indicator[hidden] { display: none; }
+body.tet-block-dragging, body.tet-block-dragging * { cursor: grabbing !important; user-select: none !important; }
+@media print { .tet-drag-handle, .tet-drag-source, .tet-drop-indicator { display: none !important; } }

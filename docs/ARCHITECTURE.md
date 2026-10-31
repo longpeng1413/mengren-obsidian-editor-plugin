@@ -8,6 +8,8 @@
 | `src/markdown.mjs` | 纯函数：保守行分类、格式化插空行、图片扫描/尺寸 token、表格边界与安全写回 |
 | `src/layout.mjs` | CM6 行装饰、跨窗口 CSS 变量、输入行可见性、Tab 知识行 postprocessor |
 | `src/image-resize.mjs` | 源码定位、Pointer Events、覆盖层、尺寸提交、并发保护 |
+| `src/blocks.mjs` | 纯函数：拖动移动块的块范围（标题整节 / 列表项含子项 / 正文段 / 图片行）、落点、移动后的文本与空行 |
+| `src/block-drag.mjs` | CM6 ViewPlugin：悬停把手、Pointer 拖动、落点线、自动滚动、单事务写入与折叠保持 |
 | `src/text-style.mjs` | Markdown 行内语义树、视觉属性读取/合并/规范化、快照与单事务提交 |
 | `src/text-style-view.mjs` | 从源码语义派生 LP HTML 组件的粗体/斜体/删除线显示，不写笔记 |
 | `src/speech-text.mjs` | 纯函数：Markdown → 朗读句子，每个字保留原文偏移；跳过属性区/代码/公式/注释/网址/嵌入，按句末标点和行切句，超长句在软停顿处切开 |
@@ -60,6 +62,12 @@
 调色板打开前捕获文本/文件/选区，确认文本仍一致后提交。Marked Lexer 读取行内语义树，但不从 HTML 反向生成 Markdown：原 delimiters、链接目标和标题字节原样保留。视觉标签展平为属性，选区内只修改目标属性，输出统一 owned span；相邻相同属性合并、空属性解包。混合语义保留多个兄弟 span，受保护语法不插入标签。详细流程和边界见 [TEXT-STYLES.md](TEXT-STYLES.md)。
 
 Live Preview 将 inline HTML 渲染为独立组件，不能仅凭 span 外层 `**` 期待继承粗体。新增 ViewPlugin 通过 posAtDOM 映射源位置，派生临时语义类；MutationObserver 处理异步 widget 重建，requestMeasure 分离读写。语义改变或停用时清理派生类，持久化 CSS 只含视觉属性。Reading/PDF 不需要此补偿。
+
+## Block drag
+
+`blocks.mjs` 复用 `classify()` 的保守分类，只在源码行上计算：`blockAt` 给出把手所属块（标题到下一个同级或更高级标题；列表项按缩进列数含子树与惰性续行；正文为相邻的正文行；图片单行），`dropTargets` 列出落点（标题只落在其他标题前 / 笔记末尾；列表项落在任一列表项前或其子树后并带该项的缩进前缀），`moveBlock` 产生新文本：先移除块并把留下的两个分隔空行并成一个，再按落点补空行，列表项按目标前缀改写缩进。都是纯函数，核心测试覆盖。
+
+`block-drag.mjs` 是独立 ViewPlugin：鼠标在编辑器里移动时按高度（`lineBlockAtHeight`，折叠的标题和图片组件都算一行）找块，把手放在 `.cm-editor` 内、块首行文字左侧（标题和列表让开 Obsidian 的折叠箭头）。按下把手后 pointer capture，按落点的行顶和缩进 x 选最近的一个，画落点线和被拖块的浅底；靠近滚动区上下边缘逐帧滚动。松手时原文未变才写：取前后公共部分，只替换中间一段，一次事务一次撤销；原来折叠的标题用 `@codemirror/language` 的 `foldEffect` 重新折叠（Obsidian 提供该模块，构建时 external）。折叠区里看不见的落点不参与选择。只认鼠标（pointerType mouse），触屏保持原生选择；只读编辑器不显示把手。
 
 ## Listening
 

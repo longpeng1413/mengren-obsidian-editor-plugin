@@ -2,6 +2,7 @@
 import {EditorState,StateField} from '@codemirror/state';
 import {EditorView,Decoration,WidgetType} from '@codemirror/view';
 import {history,undo,redo,isolateHistory} from '@codemirror/commands';
+import {codeFolding,foldEffect,foldedRanges} from '@codemirror/language';
 import {marked} from 'marked';
 import {editorInfoField,MarkdownView,notices} from './obsidian-mock';
 import Trader from '../../src/main.mjs';
@@ -106,7 +107,7 @@ async function setup(text,mode='live') {
   if(mode==='live') {
     const editor={getValue:()=>cm.state.doc.toString(),getCursor:(which='head')=>editor.offsetToPos(which==='from'?cm.state.selection.main.from:which==='to'?cm.state.selection.main.to:cm.state.selection.main.head),posToOffset:p=>cm.state.doc.line(p.line+1).from+p.ch,offsetToPos:p=>{const l=cm.state.doc.lineAt(Math.min(p,cm.state.doc.length));return {line:l.number-1,ch:p-l.from};},getSelection:()=>cm.state.sliceDoc(cm.state.selection.main.from,cm.state.selection.main.to),setSelection:(from,to)=>cm.dispatch({selection:{anchor:editor.posToOffset(from),head:editor.posToOffset(to)}}),focus:()=>cm.focus(),lastLine:()=>cm.state.doc.lines-1,getLine:n=>cm.state.doc.line(n+1).text,transaction:tx=>{const changes=tx.changes.map(c=>({from:editor.posToOffset(c.from),to:editor.posToOffset(c.to),insert:c.text}));const next=cm.state.doc.toString();let nextText=next;for(const c of [...changes].reverse()) nextText=nextText.slice(0,c.from)+c.insert+nextText.slice(c.to);const pos=p=>{const ls=nextText.split('\n');return ls.slice(0,p.line).reduce((s,l)=>s+l.length+1,0)+p.ch;};cm.dispatch({changes,selection:tx.selection?{anchor:pos(tx.selection.from),head:pos(tx.selection.to)}:undefined,annotations:isolateHistory.of('full')});}};
     info.editor=editor;
-    cm=new EditorView({parent:root,state:EditorState.create({doc:text,extensions:[editorInfoField.init(()=>info),history(),widgetField,...plugin.ext,EditorView.lineWrapping]})});
+    cm=new EditorView({parent:root,state:EditorState.create({doc:text,extensions:[editorInfoField.init(()=>info),history(),codeFolding(),widgetField,...plugin.ext,EditorView.lineWrapping]})});
     editor.cm=cm;
   } else {
     root.innerHTML=rendered(text);
@@ -128,7 +129,10 @@ async function setup(text,mode='live') {
     for(const fn of plugin.post) fn(root,ctx);
     info.previewMode={containerEl:root,getScroll:()=>0,applyScroll:()=>{},renderer:{sections:renderSections}};
   }
-  window.fixture={plugin,app,file,info,root,cm,store,backups,notices,callbacks,text:()=>mode==='live'?cm.state.doc.toString():store.get(file.path),command:id=>plugin.commands.get(id).editorCallback(info.editor,info),undo:()=>undo(cm),redo:()=>redo(cm),excalidraw:value=>excalidraw=value};
+  window.fixture={plugin,app,file,info,root,cm,store,backups,notices,callbacks,text:()=>mode==='live'?cm.state.doc.toString():store.get(file.path),command:id=>plugin.commands.get(id).editorCallback(info.editor,info),undo:()=>undo(cm),redo:()=>redo(cm),excalidraw:value=>excalidraw=value,
+    // Fold a heading's section the way Obsidian does: from the heading line end.
+    fold:(a,b)=>cm.dispatch({effects:foldEffect.of({from:cm.state.doc.line(a).to,to:cm.state.doc.line(b).to})}),
+    folds:()=>{const out=[];foldedRanges(cm.state).between(0,cm.state.doc.length,(f,t)=>{out.push([cm.state.doc.lineAt(f).number,cm.state.doc.lineAt(t).number]);});return out;}};
   return true;
 }
 window.setup=setup;window.rendered=rendered;window.formatNote=formatNote;

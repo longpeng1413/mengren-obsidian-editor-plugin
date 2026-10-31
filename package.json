@@ -1,6 +1,6 @@
 {
   "name": "trader-editor-tools",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -22,6 +22,7 @@
   },
   "devDependencies": {
     "@codemirror/commands": "6.10.1",
+    "@codemirror/language": "6.12.4",
     "esbuild": "0.25.11",
     "playwright": "1.56.1"
   }

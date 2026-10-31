@@ -488,4 +488,4 @@ function dragSize(initial, dx, dy, corner, free, maxWidth = 4096) {
   return { width: Math.round(w), height: Math.round(w/ratio) };
 }
 
-export { linesOf, splitPipes, classify, blankSpacing, paintedGaps, formatNote, scanImages, imageDimensions, resizedToken, sameDocumentPatch, dragSize, isExcalidraw, isImageTarget, relativeTarget, tableCellRange };
+export { linesOf, splitPipes, classify, listItem, columns, blankSpacing, paintedGaps, formatNote, scanImages, imageDimensions, resizedToken, sameDocumentPatch, dragSize, isExcalidraw, isImageTarget, relativeTarget, tableCellRange };

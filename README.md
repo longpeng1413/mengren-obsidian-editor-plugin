@@ -46,6 +46,10 @@ Select the headphones button at the top right of a note, or run "听书" from th
 
 Choose the reading source in settings. **System voice** uses your device's speech engine through the standard Web Speech API: offline and free, nothing leaves the device; on Windows the built-in Chinese voices are Huihui, Kangkang and Yaoyao. **Baidu** uses the read-aloud audio of Baidu Translate: free and without an account, but it needs the internet and **each sentence being read is sent to fanyi.baidu.com**; it is not an officially offered service and can stop working if Baidu changes it, in which case the plugin says so. **Automatic** (default) uses the system voice when the device has one, and Baidu otherwise, for example in Obsidian for Android, which provides no system speech engine. Downloaded audio is kept in memory only, at most six sentences, and cleared when listening stops. The reading position of up to 200 notes is remembered for 180 days and can be cleared in settings.
 
+### Drag to move blocks
+
+In the editor, hover the left side of a heading, paragraph, list item or image and drag the six-dot handle that appears. A heading moves with its whole section (also when folded, and it stays folded); a list item moves with its children and takes the level of the list it is dropped into; a paragraph moves as a whole. A line shows where the block will land, the edge of the pane scrolls while you drag, Esc cancels, and blank lines around the block are kept so it never merges into a neighbouring paragraph or list. One drag is one undo step. Desktop only for now; not in Reading view. Turn it off in settings if another drag-and-drop plugin is installed.
+
 ### Reading view and PDF
 
 Reading view and PDF export use the same spacing and styles as Live Preview. Resize handles never appear in print, and colors and highlights are preserved.
@@ -104,9 +108,11 @@ Please report bugs with anonymized minimal Markdown, your Obsidian and plugin ve
 
 > **Mengren Editor（猛人编辑器）**，原名「猛人obsidian编辑插件」。0.1.8 起为符合 Obsidian 社区目录规则（名称不能含 “Obsidian”），显示名改为 Mengren Editor；内部 ID `trader-editor-tools` 不变，已有设置、快捷键和备份不受影响。
 
-版本 **0.1.18**，MIT 开源。完整可安装插件，不需要安装 Node.js，不需要编译。优先支持 Windows / Obsidian 1.13–1.14 / Live Preview；手机可安装，但尚未真机验收。
+版本 **0.1.19**，MIT 开源。完整可安装插件，不需要安装 Node.js，不需要编译。优先支持 Windows / Obsidian 1.13–1.14 / Live Preview；手机可安装，但尚未真机验收。
 
 [下载发布版](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/releases/latest) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md) · [架构](docs/ARCHITECTURE.md) · [测试记录](TESTING.md) · [问题反馈](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/issues)
+
+0.1.19 新增 **拖动移动块**：编辑模式里鼠标移到标题、正文、列表项或图片左边，按住出现的六点把手拖到别处；标题连同整节一起移动。
 
 0.1.18 修复笔记里有一处没配对的 `**`（加粗只写了开头）时，它后面的列表、段落全部没有间距、挤在一起。
 
@@ -295,6 +301,17 @@ Markdown 原生格式负责语义，插件只添加视觉层。以粗体同时�
 
 百度朗读的音频只临时放在内存里，最多 6 句，停止朗读就清空，不写硬盘。每篇笔记读到的位置最多记 200 篇、保存 180 天，可在设置里一键清除。
 
+## 6. 拖动移动块
+
+编辑模式里，鼠标移到标题、正文、列表项或图片的左边，会出现一个六个点的把手。按住把手拖到别处，会有一条线提示放在哪里，松手就移动过去：
+
+- **标题**：连同它下面直到下一个同级或更高级标题之前的整节一起移动，包括下面的小标题。折叠着也能拖，拖完还是折叠的。标题只能放在别的标题前面或笔记末尾，不会插进别的段落中间。
+- **列表项**：带着下面缩进的子条目一起移动。放到哪里就跟那里的列表同级（左右移动鼠标可以选同一位置的不同层级）；拖完还要改层级，用 Tab / Shift+Tab。
+- **正文**：一整段（上下空行之间的几行）一起移动。
+- **图片**：图片那一行。
+
+会自动补好前后的空行，不会因为拖动让段落粘到列表里或挤在一起；空行宽松的列表拖完仍是宽松的。拖到窗口上下边缘会自动滚动；拖动中按 Esc 取消。一次拖动 = 一次撤销（Ctrl+Z）。只在编辑模式、电脑上可用，手机和阅读模式暂不支持；表格、代码块、引用、提示框以后再加。设置里可以关闭（装了 Dragger 等同类插件时请二选一）。
+
 ## 阅读模式、PDF 与主题
 
 阅读模式和 PDF 共享语义块样式；没有另一套“假段落”。图片尺寸和文字色写在内容里。Windows Obsidian 1.13.7、默认主题、Excalidraw 2.27.3 已实机验收，详细范围见 `TESTING.md`。
@@ -303,7 +320,7 @@ Markdown 原生格式负责语义，插件只添加视觉层。以粗体同时�
 
 ## 数据与安全
 
-无遥测、无账号。唯一的联网是可选的：听书使用“百度朗读”时（手动选择，或在没有系统朗读的设备上自动使用），正在朗读的句子会发给百度翻译以取得声音；使用系统声音时不联网。不会自动整理旧笔记；写入仅来自确认格式化、完成图片拖动/保存尺寸、执行文字样式命令。原文备份只保存在本地笔记库的插件目录。卸载插件不会删除笔记中的 HTML 或原生图片尺寸。
+无遥测、无账号。唯一的联网是可选的：听书使用“百度朗读”时（手动选择，或在没有系统朗读的设备上自动使用），正在朗读的句子会发给百度翻译以取得声音；使用系统声音时不联网。不会自动整理旧笔记；写入仅来自确认格式化、完成图片拖动/保存尺寸、执行文字样式命令、完成拖动移动块。原文备份只保存在本地笔记库的插件目录。卸载插件不会删除笔记中的 HTML 或原生图片尺寸。
 
 ## 完整工程与开发
 

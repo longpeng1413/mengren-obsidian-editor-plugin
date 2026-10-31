@@ -940,3 +940,85 @@ test('image resizing leaves Obsidian zoom button and double-click zoom working',
     assert.equal(await page.locator('.tet-resize-overlay').count(),0,mode);
   }
 });
+
+// Drag-to-move blocks. Lines are 1-based like CodeMirror; the pointer aims at
+// the top edge of the line the block should land before.
+async function lineY(n,edge='top') {
+  return page.evaluate(([n,edge])=>{const cm=fixture.cm,doc=cm.state.doc;const b=n>doc.lines?cm.lineBlockAt(doc.length):cm.lineBlockAt(doc.line(n).from);return cm.documentTop+(n>doc.lines||edge==='bottom'?b.bottom:b.top);},[n,edge]);
+}
+async function hoverLine(n) {
+  const x=await page.evaluate(()=>fixture.cm.contentDOM.getBoundingClientRect().left+60);
+  await page.mouse.move(x,(await lineY(n))+6);
+  await page.waitForTimeout(30);
+}
+async function dragBlock(fromLine,toLine,{x=null,release=true}={}) {
+  await hoverLine(fromLine);
+  const handle=await page.locator('.tet-drag-handle').boundingBox();
+  assert.ok(handle,'handle visible');
+  await page.mouse.move(handle.x+handle.width/2,handle.y+handle.height/2);await page.mouse.down();
+  const left=await page.evaluate(()=>fixture.cm.contentDOM.getBoundingClientRect().left);
+  await page.mouse.move(x??left+40,(await lineY(toLine))+1,{steps:6});
+  if(release){await page.mouse.up();await page.waitForTimeout(60);}
+}
+const dragDoc=['# 一','','段落一','续行','','## 甲','','- a','\t- a1','\t- a2','- b','','![[图.png]]','','## 乙','','正文乙','','# 二','','尾段',''].join('\n');
+
+test('drag handle appears beside headings, paragraphs, list items and images, not on blank lines',async()=>{
+  await setup(dragDoc);
+  for(const [line,kind] of [[1,'heading'],[3,'paragraph'],[8,'list'],[9,'list'],[13,'image']]) {
+    await hoverLine(line);
+    assert.equal(await page.locator('.tet-drag-handle').getAttribute('data-kind'),kind,`line ${line}`);
+    assert.equal(await page.locator('.tet-drag-handle').isVisible(),true);
+  }
+  // The handle sits left of the text, vertically on the block's first row.
+  await hoverLine(6);
+  const handle=await page.locator('.tet-drag-handle').boundingBox(),top=await lineY(6),bottom=await lineY(6,'bottom');
+  assert.ok(handle.y+handle.height/2>top && handle.y+handle.height/2<bottom);
+  assert.ok(handle.x+handle.width<await page.evaluate(()=>fixture.cm.coordsAtPos(fixture.cm.state.doc.line(6).from).left));
+});
+
+test('dragging a heading moves its whole section in one undo step',async()=>{
+  await setup(dragDoc);
+  await dragBlock(6,19);
+  assert.equal(await page.evaluate(()=>fixture.text()),'# 一\n\n段落一\n续行\n\n## 乙\n\n正文乙\n\n## 甲\n\n- a\n\t- a1\n\t- a2\n- b\n\n![[图.png]]\n\n# 二\n\n尾段\n');
+  assert.equal(await page.evaluate(()=>fixture.cm.state.doc.lineAt(fixture.cm.state.selection.main.head).text),'## 甲');
+  await page.evaluate(()=>fixture.undo());
+  assert.equal(await page.evaluate(()=>fixture.text()),dragDoc);
+});
+
+test('dragging list items, paragraphs and images',async()=>{
+  await setup(dragDoc);
+  // Tab child dragged before the next top-level item becomes its sibling.
+  await dragBlock(9,11);
+  assert.equal(await page.evaluate(()=>fixture.text()),dragDoc.replace('\t- a1\n\t- a2\n- b','\t- a2\n- a1\n- b'));
+  await setup(dragDoc);
+  await dragBlock(3,21);
+  assert.equal(await page.evaluate(()=>fixture.text()),'# 一\n\n## 甲\n\n- a\n\t- a1\n\t- a2\n- b\n\n![[图.png]]\n\n## 乙\n\n正文乙\n\n# 二\n\n段落一\n续行\n\n尾段\n');
+  await setup(dragDoc);
+  await dragBlock(13,1);
+  assert.equal(await page.evaluate(()=>fixture.text()),'![[图.png]]\n\n# 一\n\n段落一\n续行\n\n## 甲\n\n- a\n\t- a1\n\t- a2\n- b\n\n## 乙\n\n正文乙\n\n# 二\n\n尾段\n');
+});
+
+test('a drop indicator shows while dragging; Esc and the setting switch cancel',async()=>{
+  await setup(dragDoc);
+  await hoverLine(6);
+  await page.screenshot({path:path.join(work,'block-drag-handle.png'),clip:{x:0,y:0,width:900,height:640}});
+  await dragBlock(6,19,{release:false});
+  await page.screenshot({path:path.join(work,'block-drag-dragging.png'),clip:{x:0,y:0,width:900,height:640}});
+  assert.equal(await page.locator('.tet-drop-indicator').isVisible(),true);
+  assert.equal(await page.locator('.tet-drag-source').count(),1);
+  await page.keyboard.press('Escape');await page.mouse.up();await page.waitForTimeout(40);
+  assert.equal(await page.evaluate(()=>fixture.text()),dragDoc);
+  assert.equal(await page.locator('.tet-drop-indicator').count(),0);
+  await page.evaluate(()=>{fixture.plugin.settings.blockDrag=false;});
+  await hoverLine(1);
+  assert.equal(await page.locator('.tet-drag-handle').isVisible(),false);
+});
+
+test('a folded heading section moves whole and stays folded',async()=>{
+  await setup(dragDoc);
+  await page.evaluate(()=>fixture.fold(6,13));
+  assert.deepEqual(await page.evaluate(()=>fixture.folds()),[[6,13]]);
+  await dragBlock(6,19);
+  assert.equal(await page.evaluate(()=>fixture.text()),'# 一\n\n段落一\n续行\n\n## 乙\n\n正文乙\n\n## 甲\n\n- a\n\t- a1\n\t- a2\n- b\n\n![[图.png]]\n\n# 二\n\n尾段\n');
+  assert.deepEqual(await page.evaluate(()=>fixture.folds()),[[10,17]]);
+});
