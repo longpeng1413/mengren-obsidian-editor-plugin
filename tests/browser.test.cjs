@@ -879,3 +879,44 @@ test('while the player is open, double-tapping another sentence reads from there
   assert.equal(await page.evaluate(()=>getSelection().isCollapsed),true);
   await page.evaluate(()=>fixture.plugin.speech.stop());
 });
+
+// Newer Obsidian draws a zoom button (.embed-actions) on images and opens an
+// image viewer on double-click; resizing must not swallow either.
+test('image resizing leaves Obsidian zoom button and double-click zoom working',async()=>{
+  for(const mode of ['live','reading']) {
+    await setup('![[图.png]]',mode);
+    await page.waitForFunction(()=>[...document.images].every(i=>i.complete&&i.naturalWidth));
+    await page.evaluate(()=>{
+      window.zoomClicks=0;window.imageDblclicks=0;window.secondClicks=0;
+      const embed=document.querySelector('.internal-embed');
+      const actions=embed.appendChild(document.createElement('div'));actions.className='embed-actions';
+      const zoom=actions.appendChild(document.createElement('div'));zoom.className='embed-action';zoom.setAttribute('aria-label','放大');zoom.textContent='+';
+      Object.assign(actions.style,{position:'absolute',zIndex:'5'});embed.style.position='relative';
+      zoom.addEventListener('click',()=>zoomClicks++);
+      // The "edit this block" (</>) button sits on the embed as well.
+      window.editClicks=0;
+      const edit=actions.appendChild(document.createElement('div'));edit.className='edit-block-button clickable-icon';edit.setAttribute('aria-label','编辑这个区块');edit.textContent='</>';
+      edit.addEventListener('click',()=>editClicks++);
+      const img=embed.querySelector('img');
+      img.addEventListener('dblclick',()=>imageDblclicks++);
+      img.addEventListener('click',e=>{if(e.detail===2)secondClicks++;});
+    });
+    // The zoom button gets its click; no resize handles appear.
+    await page.locator('.embed-action').click();await page.waitForTimeout(80);
+    assert.equal(await page.evaluate(()=>zoomClicks),1,mode);
+    assert.equal(await page.locator('.tet-resize-overlay').count(),0,mode);
+    await page.locator('.edit-block-button').click();await page.waitForTimeout(80);
+    assert.equal(await page.evaluate(()=>editClicks),1,mode);
+    assert.equal(await page.locator('.tet-resize-overlay').count(),0,mode);
+    // A single click still shows the resize handles.
+    const box=await page.locator('img').boundingBox();
+    await page.mouse.click(box.x+box.width/2,box.y+box.height/2);await page.waitForTimeout(120);
+    assert.equal(await page.locator('.tet-resize-overlay').count(),1,mode);
+    await page.keyboard.press('Escape');
+    // A double-click reaches the image, including its second click, and closes the handles.
+    await page.mouse.dblclick(box.x+box.width/2,box.y+box.height/2);await page.waitForTimeout(120);
+    assert.equal(await page.evaluate(()=>imageDblclicks),1,mode);
+    assert.equal(await page.evaluate(()=>secondClicks),1,mode);
+    assert.equal(await page.locator('.tet-resize-overlay').count(),0,mode);
+  }
+});

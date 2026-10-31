@@ -1,7 +1,7 @@
 {
   "id": "trader-editor-tools",
   "name": "Mengren Editor",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "minAppVersion": "1.6.0",
   "description": "Keep paragraph, code, quote, table and image spacing consistent, resize images by dragging, add text color, highlight and underline, and read notes aloud, while keeping native Markdown editing.",
   "author": "longpeng1413",

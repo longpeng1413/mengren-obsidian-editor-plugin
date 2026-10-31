@@ -7,7 +7,9 @@ function cleanTarget(value) {
 }
 
 function imageElement(target) {
-  if (!target?.closest || target.closest('.tet-resize-overlay, .tet-modal')) return null;
+  // Controls drawn on an image (Obsidian's zoom button in .embed-actions, the
+  // "edit this block" button, any icon button) belong to Obsidian, not to resizing.
+  if (!target?.closest || target.closest('.tet-resize-overlay, .tet-modal, .embed-actions, .edit-block-button, .clickable-icon, button, [role="button"]')) return null;
   const embed = target.closest('.excalidraw-embedded-img[filesource]') || target.closest('.internal-embed') || target.closest('.excalidraw-embedded-img') || target.closest('.excalidraw-svg');
   if (embed && /\.excalidraw(?:\.md)?(?:#|$)/i.test(embed.getAttribute('src') || embed.getAttribute('data-src') || embed.getAttribute('filesource') || '')) {
     return { element: embed.querySelector('img,svg') || embed, embed };
@@ -38,7 +40,7 @@ class ImageResizeManager {
     if (this.bindings.has(doc)) return;
     const pointer = e => this.onSelect(e);
     const click = e => {
-      if (this.blockClick && imageElement(e.target)) { e.preventDefault(); e.stopPropagation(); this.blockClick = false; }
+      if (this.blockClick && e.detail <= 1 && imageElement(e.target)) { e.preventDefault(); e.stopPropagation(); this.blockClick = false; }
     };
     const key = e => { if (e.key === 'Escape') { this.resolveId++; this.close(); } };
     const scroll = () => { if (this.session && !this.session.dragging) this.position(); };
@@ -151,8 +153,19 @@ class ImageResizeManager {
     if (event.target.closest?.('.tet-resize-overlay')) return;
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return; // native open/edit gestures
     const hit = imageElement(event.target);
+    // Each press cancels a resolution still pending from an earlier press.
     const id = ++this.resolveId;
     if (!hit) { this.close(); return; }
+    // The second press of a double-click is Obsidian's (it opens the image
+    // viewer): let it through and put the handles away. pointerdown carries no
+    // click count (detail is 0), so pair the presses by time and place.
+    // Every press within 0.5 s and 8 px of the previous one is a repeat
+    // (double or triple click), however the presses pair up.
+    const now = Date.now(), last = this.lastPress;
+    this.lastPress = {t: now, x: event.clientX, y: event.clientY};
+    if (event.detail > 1 || (last && now - last.t < 500 && Math.hypot(event.clientX - last.x, event.clientY - last.y) < 8)) {
+      this.resolveId++; this.close(); return;
+    }
     if (!this.findEditorView(hit.element) && !this.plugin.settings.readingResize) return;
     event.preventDefault(); event.stopPropagation(); this.blockClick = true;
     this.close();
