@@ -40,18 +40,17 @@ function itemEnd(m, k) {
   return end;
 }
 
-/** Indented lines right after a top-level paragraph are its children, as in
- * wolai: Tab rows, nested lists, indented notes (blank lines between them
- * included). Returns the last child line, or `end` when there are none. */
+/** What follows a top-level paragraph as its children, as in wolai: indented
+ * lines (Tab rows, nested lists, indented notes) and the list right under it,
+ * unindented items included; blank lines between them belong too. It ends at
+ * the next paragraph, heading, rule or other block. Returns the last child
+ * line, or `end` when there are none. */
 function childrenEnd(m, end) {
   const n = m.src.length;
   for (let j = end + 1; j < n;) {
-    if (blank(m.src[j])) {
-      let next = j; while (next < n && blank(m.src[next])) next++;
-      if (next < n && indentOf(m.src[next]) > 0) { j = next; continue; }
-      break;
-    }
+    if (blank(m.src[j])) { j++; continue; }
     if (indentOf(m.src[j]) > 0) { end = j++; continue; }
+    if (isListStart(m, j)) { end = itemEnd(m, j); j = end + 1; continue; }
     break;
   }
   return end;

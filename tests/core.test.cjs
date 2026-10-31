@@ -430,6 +430,13 @@ test('drag blocks: indented lines under a paragraph are its children and move wi
   }
   // A child alone still drags by itself.
   assert.equal(blockAt('父正文\n\n\t子说明\n\n下一段',2).kind,'tab');
+  // The list right under a paragraph is its child even unindented; it ends at a rule, heading or the next paragraph.
+  const listKids='父正文\n\n- 子一\n- 子二\n***\n\n下一段';
+  assert.deepEqual(blockAt(listKids,0),{kind:'paragraph',from:0,to:3});
+  assert.equal(moveBlock(listKids,blockAt(listKids,0),{line:7}).text,'***\n\n下一段\n\n父正文\n\n- 子一\n- 子二');
+  assert.deepEqual(blockAt('父正文\n- 子一\n\n## 标题',0),{kind:'paragraph',from:0,to:1});
+  assert.deepEqual(blockAt('父正文\n\n- 子一\n\n另一段\n\n- 它的子',0),{kind:'paragraph',from:0,to:2});
+  assert.deepEqual(blockAt(listKids,2),{kind:'list',from:2,to:2,indent:''});
   // A past-the-end drop still gets its blank line.
   assert.equal(moveBlock('A\n\nB',blockAt('A\n\nB',0),{line:9}).text,'B\n\nA');
 });

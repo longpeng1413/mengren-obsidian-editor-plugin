@@ -42,7 +42,14 @@ function blockDragExtension(plugin) {
       this.onTouchMove = e => this.touchMove(e);
       this.onTouchEnd = e => this.touchEnd(e);
       // While a block is lifted the long press must not select text or open a menu.
-      this.onBlock = e => { if (this.touching()) e.preventDefault(); };
+      // Stopped outright, not just prevented: Obsidian opens its own image
+      // menu (copy, replace, remove…) on a long press. Kept up briefly after a
+      // drop, when a long press can still end in a context menu.
+      this.onBlock = e => {
+        if (!this.touching() && Date.now() > this.guardUntil) return;
+        e.preventDefault(); e.stopImmediatePropagation();
+      };
+      this.guardUntil = 0;
       view.dom.addEventListener('pointermove', this.onMove);
       view.dom.addEventListener('pointerleave', this.onLeave);
       view.scrollDOM.addEventListener('scroll', this.onScroll);
@@ -246,6 +253,7 @@ function blockDragExtension(plugin) {
       if (!this.touching() || !this.touchOf(e)) return;
       // No click, caret or keyboard after a drop.
       e.preventDefault();
+      this.guardUntil = Date.now() + 600;
       this.finish(e.type === 'touchend', true);
     }
 

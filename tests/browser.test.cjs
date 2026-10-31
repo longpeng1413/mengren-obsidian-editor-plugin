@@ -1177,10 +1177,17 @@ test('touch: tapping an image opens resizing, long-pressing it drags it',async()
     await touch('touchStart',cx,cy);await p.waitForTimeout(450);
     assert.equal(await p.locator('.tet-drag-ghost').count(),1,'long press lifts the image');
     assert.equal(await p.locator('.tet-resize-overlay').count(),0,'no resize handles on a long press');
+    // Obsidian's own image menu listens for the long press's contextmenu: it must not get it.
+    const menus=()=>p.evaluate(()=>{const img=document.querySelector('img');window.menus=window.menus||0;if(!img.dataset.listening){img.dataset.listening='1';img.addEventListener('contextmenu',()=>window.menus++);}return img.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))?window.menus:-window.menus-100;});
+    assert.equal(await menus(),-100,'contextmenu stopped before Obsidian sees it');
     const to=(await y(5))+((await y(6))-(await y(5)))/2+1, x0=await x();
     for(let i=1;i<=5;i++){await touch('touchMove',x0,cy+(to-cy)*i/5);await p.waitForTimeout(16);}
     await touch('touchEnd');await p.waitForTimeout(60);
     assert.equal(await p.evaluate(()=>fixture.text()),'段落一\n\n段落二\n\n![[图.png]]\n');
     assert.equal(await p.locator('.tet-resize-overlay').count(),0);
+    // Just after the drop, a late long-press menu is still stopped; later, menus work again.
+    assert.equal(await menus(),-100);
+    await p.waitForTimeout(700);
+    assert.equal(await menus(),1);
   } finally { await context.close(); }
 });
