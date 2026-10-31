@@ -66,7 +66,7 @@ Live Preview 将 inline HTML 渲染为独立组件，不能仅凭 span 外层 `*
 
 ## Block drag
 
-`blocks.mjs` 复用 `classify()` 的保守分类，只在源码行上计算：`blockAt` 给出把手所属块（标题到下一个同级或更高级标题；列表项按缩进列数含子树与惰性续行；正文为相邻的正文行；图片单行；顶格的围栏代码、引用 / Callout、表格整块，缩进的归列表项；连续的缩进代码 / Tab 知识行整段；顶格正文后紧跟的缩进行算它的子块），`dropTargets` 列出落点（标题只落在其他标题前 / 笔记末尾；列表项落在任一列表项前或其子树后并带该项的缩进前缀），`moveBlock` 产生新文本：先移除块并把留下的两个分隔空行并成一个，再按落点补空行，列表项按目标前缀改写缩进。都是纯函数，核心测试覆盖。
+`blocks.mjs` 复用 `classify()` 的保守分类，只在源码行上计算：`blockAt` 给出把手所属块（标题到下一个同级或更高级标题；列表项按缩进列数含子树与惰性续行；正文为相邻的正文行；图片单行；顶格的围栏代码、引用 / Callout、表格整块，缩进的归列表项；连续的缩进代码 / Tab 知识行整段；顶格正文后紧跟的缩进行和列表（顶格的也算，可隔空行）算它的子块），`dropTargets` 列出落点（标题只落在其他标题前 / 笔记末尾；列表项落在任一列表项前或其子树后并带该项的缩进前缀），`moveBlock` 产生新文本：先移除块并把留下的两个分隔空行并成一个，再按落点补空行，列表项按目标前缀改写缩进。都是纯函数，核心测试覆盖。
 
 `block-drag.mjs` 是独立 ViewPlugin：鼠标在编辑器里移动时按高度（`lineBlockAtHeight`，折叠的标题和图片组件都算一行）找块，把手放在 `.cm-editor` 内、块首行文字左侧（标题和列表让开 Obsidian 的折叠箭头）。按下把手后 pointer capture，只在编辑器可见区域（滚动区 ∩ 可视窗口）里按落点的行顶和缩进 x 选最近的一个（都不在屏幕上时不选，松手即取消），画落点线和被拖块的浅底；靠近滚动区上下边缘逐帧滚动。松手时原文未变才写：取前后公共部分，只替换中间一段，一次事务一次撤销；原来折叠的标题用 `@codemirror/language` 的 `foldEffect` 重新折叠（Obsidian 提供该模块，构建时 external）。折叠区里看不见的落点不参与选择。鼠标走 pointer 事件（pointerType mouse）。触屏走 touch 事件：touchstart 记下块并计时 300ms（默认编辑器有焦点也一样，设置 `touchSelectWhileTyping` 打开时有焦点则交给系统选字），期间移动超过 10px 视为滚动放弃；到时浮起（`begin` 同鼠标，另用 `MarkdownRenderer.render` 把这一块重新排成悬浮卡片——不克隆编辑器行，它们离开编辑器就失去排版——卡片底边固定在指尖上方以免挡住落点线），浮起时把 contentDOM 的 contenteditable 暂设为 false 并清选区（取消 / 放下时恢复原值），之后 touchmove（非 passive）preventDefault 阻止滚动，捕获阶段拦下 contextmenu / selectstart 防止长按选字和菜单；touchend preventDefault 不产生点击，放下后不 focus（不弹键盘）。编辑器有焦点（在打字）时长按交给系统选字。只读编辑器不显示把手。
 

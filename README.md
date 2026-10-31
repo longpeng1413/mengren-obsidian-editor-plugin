@@ -48,7 +48,7 @@ Choose the reading source in settings. **System voice** uses your device's speec
 
 ### Drag to move blocks
 
-In the editor, hover the left side of a heading, paragraph, list item, image, code block, quote, Callout, table or Tab knowledge row and drag the six-dot handle that appears. On a phone, long-press a block: it lifts as a card showing the whole block, follows your finger, and a purple line shows where it will land; only positions on screen are offered, otherwise the card says releasing cancels; tap an image to resize it, long-press it to move it (double-tap a word to select text instead; a setting keeps long press for selection while typing). A heading moves with its whole section (also when folded, and it stays folded); a list item moves with its children and takes the level of the list it is dropped into; a paragraph moves as a whole, together with the indented lines right under it (its children, as in wolai). A line shows where the block will land, the edge of the pane scrolls while you drag, Esc cancels, and blank lines around the block are kept so it never merges into a neighbouring paragraph or list. One drag is one undo step. Not in Reading view. Turn it off in settings if another drag-and-drop plugin is installed.
+In the editor, hover the left side of a heading, paragraph, list item, image, code block, quote, Callout, table or Tab knowledge row and drag the six-dot handle that appears. On a phone, long-press a block: it lifts as a card showing the whole block, follows your finger, and a purple line shows where it will land; only positions on screen are offered, otherwise the card says releasing cancels; tap an image to resize it, long-press it to move it (double-tap a word to select text instead; a setting keeps long press for selection while typing). A heading moves with its whole section (also when folded, and it stays folded); a list item moves with its children and takes the level of the list it is dropped into; a paragraph moves as a whole, together with the list and indented lines right under it (its children, as in wolai). A line shows where the block will land, the edge of the pane scrolls while you drag, Esc cancels, and blank lines around the block are kept so it never merges into a neighbouring paragraph or list. One drag is one undo step. Not in Reading view. Turn it off in settings if another drag-and-drop plugin is installed.
 
 ### Reading view and PDF
 
@@ -108,9 +108,11 @@ Please report bugs with anonymized minimal Markdown, your Obsidian and plugin ve
 
 > **Mengren Editor（猛人编辑器）**，原名「猛人obsidian编辑插件」。0.1.8 起为符合 Obsidian 社区目录规则（名称不能含 “Obsidian”），显示名改为 Mengren Editor；内部 ID `trader-editor-tools` 不变，已有设置、快捷键和备份不受影响。
 
-版本 **0.1.22**，MIT 开源。完整可安装插件，不需要安装 Node.js，不需要编译。优先支持 Windows / Obsidian 1.13–1.14 / Live Preview；手机可安装，但尚未真机验收。
+版本 **0.1.23**，MIT 开源。完整可安装插件，不需要安装 Node.js，不需要编译。优先支持 Windows / Obsidian 1.13–1.14 / Live Preview；手机可安装，但尚未真机验收。
 
 [下载发布版](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/releases/latest) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md) · [架构](docs/ARCHITECTURE.md) · [测试记录](TESTING.md) · [问题反馈](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/issues)
+
+0.1.23 正文下面紧跟的列表（顶格的也算）作为子块跟着一起移动；手机长按图片拖动时不再弹出 Obsidian 的图片菜单。
 
 0.1.22 手机上浮起的卡片显示整块内容；落点只在屏幕上看得见的位置里选，没有时卡片显示「松手取消」；手机上轻点图片调大小、长按图片拖动；正文下面缩进的内容（Tab 行、缩进列表）作为子块跟着一起移动。
 
@@ -313,7 +315,7 @@ Markdown 原生格式负责语义，插件只添加视觉层。以粗体同时�
 
 - **标题**：连同它下面直到下一个同级或更高级标题之前的整节一起移动，包括下面的小标题。折叠着也能拖，拖完还是折叠的。标题只能放在别的标题前面或笔记末尾，不会插进别的段落中间。
 - **列表项**：带着下面缩进的子条目一起移动。放到哪里就跟那里的列表同级（左右移动鼠标可以选同一位置的不同层级）；拖完还要改层级，用 Tab / Shift+Tab。
-- **正文**：一整段（上下空行之间的几行）一起移动；紧跟在它下面、有缩进的内容（Tab 知识行、缩进的列表、缩进的说明）算它的子块，跟着一起走，和 wolai 一样。单独拖子块也可以。
+- **正文**：一整段（上下空行之间的几行）一起移动；紧跟在它下面的列表（顶格、缩进都算）和有缩进的内容（Tab 知识行、缩进的说明）算它的子块，跟着一起走，和 wolai 一样，中间隔着空行也算；遇到下一段正文、标题、分割线为止。单独拖子块也可以。
 - **图片**：图片那一行。
 - **代码块、引用、提示框、表格、Tab 知识行**：整块一起移动（列表里缩进的引用、代码跟着列表项走）。
 
