@@ -1191,3 +1191,56 @@ test('touch: tapping an image opens resizing, long-pressing it drags it',async()
     assert.equal(await menus(),1);
   } finally { await context.close(); }
 });
+
+test('touch: long press and release in place opens Obsidian\'s long-press menu, moves nothing (wolai)',async()=>{
+  const {p,context,touch,y,x}=await touchPage();
+  try {
+    const doc='段落一\n\n![[图.png]]\n\n段落二\n';
+    await p.evaluate(t=>window.setup(t),doc);
+    await p.waitForFunction(()=>[...document.images].every(i=>i.complete));await p.waitForTimeout(100);
+    await p.evaluate(()=>{window.menuAt=[];document.querySelector('img').addEventListener('contextmenu',e=>menuAt.push(['img',e.clientX,e.clientY]));fixture.cm.contentDOM.addEventListener('contextmenu',e=>{if(e.target.tagName!=='IMG')menuAt.push(['text',e.clientX,e.clientY]);});});
+    const img=await p.locator('img').boundingBox(),cx=Math.round(img.x+img.width/2),cy=Math.round(img.y+img.height/2);
+    await touch('touchStart',cx,cy);await p.waitForTimeout(450);
+    assert.equal(await p.locator('.tet-drag-ghost').count(),1);
+    await touch('touchMove',cx+3,cy+2);await p.waitForTimeout(16);
+    await touch('touchEnd');await p.waitForTimeout(60);
+    assert.deepEqual(await p.evaluate(()=>menuAt),[['img',cx,cy]],'image menu opened once, at the finger');
+    assert.equal(await p.locator('.tet-drag-ghost').count(),0);
+    assert.equal(await p.evaluate(()=>fixture.text()),doc);
+    assert.equal(await p.evaluate(()=>fixture.cm.contentDOM.getAttribute('contenteditable')),'true');
+    // Same on text: the editor gets the long-press menu.
+    const x0=await x(),ty=Math.round((await y(1))+6);
+    await touch('touchStart',x0,ty);await p.waitForTimeout(450);await touch('touchEnd');await p.waitForTimeout(60);
+    assert.deepEqual((await p.evaluate(()=>menuAt)).at(-1),['text',x0,ty]);
+    assert.equal(await p.evaluate(()=>fixture.text()),doc);
+  } finally { await context.close(); }
+});
+
+test('wolai: the dragged block shows as a card by the pointer, fades in place, and flashes where it lands',async()=>{
+  await setup(dragDoc);
+  await dragBlock(3,21,{release:false});
+  assert.equal(await page.locator('.tet-drag-ghost').count(),1,'card follows the mouse');
+  assert.ok((await page.locator('.tet-drag-ghost').textContent()).includes('续行'));
+  const card=await page.locator('.tet-drag-ghost').boundingBox(),line=await page.locator('.tet-drop-indicator').boundingBox();
+  assert.ok(card.y>line.y,'card hangs below the pointer, not over the line');
+  await page.screenshot({path:path.join(work,'block-drag-desktop-card.png'),clip:{x:0,y:0,width:900,height:700}});
+  await page.mouse.up();await page.waitForTimeout(80);
+  assert.equal(await page.locator('.tet-drag-ghost').count(),0);
+  assert.equal(await page.locator('.tet-drop-flash').count(),1,'landed block highlighted');
+  await page.waitForTimeout(1000);
+  assert.equal(await page.locator('.tet-drop-flash').count(),0);
+  await page.setViewportSize({width:1200,height:900});
+});
+
+test('wolai: clicking the handle opens the block\'s menu (an image\'s own menu for an image) and moves nothing',async()=>{
+  await setup(dragDoc);
+  await page.evaluate(()=>{window.menuAt=[];document.addEventListener('contextmenu',e=>{menuAt.push(e.target.tagName==='IMG'?'img':e.target.closest('.cm-line')?.textContent);e.preventDefault();});});
+  for(const [line,expect] of [[3,'段落一'],[6,'## 甲'],[13,'img']]) {
+    await hoverLine(line);
+    const h=await page.locator('.tet-drag-handle').boundingBox();
+    await page.mouse.click(h.x+h.width/2,h.y+h.height/2);await page.waitForTimeout(40);
+    assert.equal(await page.evaluate(()=>menuAt.at(-1)),expect,`line ${line}`);
+    assert.equal(await page.locator('.tet-drag-ghost').count(),0);
+  }
+  assert.equal(await page.evaluate(()=>fixture.text()),dragDoc);
+});

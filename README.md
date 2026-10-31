@@ -48,7 +48,7 @@ Choose the reading source in settings. **System voice** uses your device's speec
 
 ### Drag to move blocks
 
-In the editor, hover the left side of a heading, paragraph, list item, image, code block, quote, Callout, table or Tab knowledge row and drag the six-dot handle that appears. On a phone, long-press a block: it lifts as a card showing the whole block, follows your finger, and a purple line shows where it will land; only positions on screen are offered, otherwise the card says releasing cancels; tap an image to resize it, long-press it to move it (double-tap a word to select text instead; a setting keeps long press for selection while typing). A heading moves with its whole section (also when folded, and it stays folded); a list item moves with its children and takes the level of the list it is dropped into; a paragraph moves as a whole, together with the list and indented lines right under it (its children, as in wolai). A line shows where the block will land, the edge of the pane scrolls while you drag, Esc cancels, and blank lines around the block are kept so it never merges into a neighbouring paragraph or list. One drag is one undo step. Not in Reading view. Turn it off in settings if another drag-and-drop plugin is installed.
+In the editor, hover the left side of a heading, paragraph, list item, image, code block, quote, Callout, table or Tab knowledge row and drag the six-dot handle that appears. On a phone, long-press a block: it lifts as a card showing the whole block, follows your finger, and a purple line shows where it will land; only positions on screen are offered, otherwise the card says releasing cancels; a long press released without moving opens Obsidian's usual long-press menu (the image menu on images); tap an image to resize it, long-press and drag it to move it (double-tap a word to select text instead; a setting keeps long press for selection while typing). Clicking the handle opens the block's menu; while dragging, the block fades in place and a card with it follows the pointer, and it flashes where it lands, as in wolai. A heading moves with its whole section (also when folded, and it stays folded) and, like any block, may land between any two blocks; a list item moves with its children and takes the level of the list it is dropped into; a paragraph moves as a whole, together with the list and indented lines right under it (its children, as in wolai). A line shows where the block will land, the edge of the pane scrolls while you drag, Esc cancels, and blank lines around the block are kept so it never merges into a neighbouring paragraph or list. One drag is one undo step. Not in Reading view. Turn it off in settings if another drag-and-drop plugin is installed.
 
 ### Reading view and PDF
 
@@ -108,9 +108,11 @@ Please report bugs with anonymized minimal Markdown, your Obsidian and plugin ve
 
 > **Mengren Editor（猛人编辑器）**，原名「猛人obsidian编辑插件」。0.1.8 起为符合 Obsidian 社区目录规则（名称不能含 “Obsidian”），显示名改为 Mengren Editor；内部 ID `trader-editor-tools` 不变，已有设置、快捷键和备份不受影响。
 
-版本 **0.1.23**，MIT 开源。完整可安装插件，不需要安装 Node.js，不需要编译。优先支持 Windows / Obsidian 1.13–1.14 / Live Preview；手机可安装，但尚未真机验收。
+版本 **0.1.24**，MIT 开源。完整可安装插件，不需要安装 Node.js，不需要编译。优先支持 Windows / Obsidian 1.13–1.14 / Live Preview；手机可安装，但尚未真机验收。
 
 [下载发布版](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/releases/latest) · [更新记录](CHANGELOG.md) · [开发指南](CONTRIBUTING.md) · [架构](docs/ARCHITECTURE.md) · [测试记录](TESTING.md) · [问题反馈](https://github.com/longpeng1413/mengren-obsidian-editor-plugin/issues)
+
+0.1.24 按 wolai 统一拖动体验：手机长按后原地松手打开 Obsidian 原来的长按菜单（图片菜单等）、电脑单击把手打开这一块的菜单；电脑拖动时也有跟着鼠标的卡片；原位置变淡、放下后短暂高亮；标题可以放在任意两块之间。
 
 0.1.23 正文下面紧跟的列表（顶格的也算）作为子块跟着一起移动；手机长按图片拖动时不再弹出 Obsidian 的图片菜单。
 
@@ -313,13 +315,15 @@ Markdown 原生格式负责语义，插件只添加视觉层。以粗体同时�
 
 编辑模式里，鼠标移到标题、正文、列表项、图片、代码块、引用、提示框、表格或 Tab 知识行的左边，会出现一个六个点的把手。按住把手拖到别处，会有一条线提示放在哪里，松手就移动过去：
 
-- **标题**：连同它下面直到下一个同级或更高级标题之前的整节一起移动，包括下面的小标题。折叠着也能拖，拖完还是折叠的。标题只能放在别的标题前面或笔记末尾，不会插进别的段落中间。
+- **标题**：连同它下面直到下一个同级或更高级标题之前的整节一起移动，包括下面的小标题。折叠着也能拖，拖完还是折叠的。和 wolai 一样可以放在任意两块之间（放到别的正文中间时，后面的正文会归到这个标题下面，这是 Markdown 标题的规则）。
 - **列表项**：带着下面缩进的子条目一起移动。放到哪里就跟那里的列表同级（左右移动鼠标可以选同一位置的不同层级）；拖完还要改层级，用 Tab / Shift+Tab。
 - **正文**：一整段（上下空行之间的几行）一起移动；紧跟在它下面的列表（顶格、缩进都算）和有缩进的内容（Tab 知识行、缩进的说明）算它的子块，跟着一起走，和 wolai 一样，中间隔着空行也算；遇到下一段正文、标题、分割线为止。单独拖子块也可以。
 - **图片**：图片那一行。
 - **代码块、引用、提示框、表格、Tab 知识行**：整块一起移动（列表里缩进的引用、代码跟着列表项走）。
 
-**手机上**：长按一块约 0.3 秒，它会浮起来（有轻微震动的手机会震一下），整块内容显示成一张卡片浮在手指上方、跟着手指走，紫色的线是放下的位置，松手放下；拖到屏幕上下边缘会自动滚动。落点只在屏幕上看得见的位置里选；手指附近没有能放的位置时（比如拖标题时附近没有别的标题），卡片变淡并显示「松手取消」，这时松手不会改动任何内容，可以拖到屏幕边缘让页面滚过去再放。图片：轻点是调大小，长按是拖动。手指一开始就滑动是正常滚动，不会拖。浮起时正文暂时不可选，所以不会弹出系统的选字菜单。要选字请 **双击一个词**，再拖两端的选择柄；习惯长按选字的，可以在设置里打开「手机上正在打字时长按选字」（光标在正文里时长按选字，其他时候长按拖动）。
+**手机上**：长按一块约 0.3 秒，它会浮起来（有轻微震动的手机会震一下），整块内容显示成一张卡片浮在手指上方、跟着手指走，紫色的线是放下的位置，松手放下；拖到屏幕上下边缘会自动滚动。落点只在屏幕上看得见的位置里选；手指附近没有能放的位置时（比如拖标题时附近没有别的标题），卡片变淡并显示「松手取消」，这时松手不会改动任何内容，可以拖到屏幕边缘让页面滚过去再放。**长按后不动、原地松手**：卡片落下，打开 Obsidian 原来的长按菜单（图片是复制图片、替换内容、移除图片、重命名等菜单），和 wolai 一样。图片：轻点是调大小，长按拖动是移动。手指一开始就滑动是正常滚动，不会拖。浮起时正文暂时不可选，所以不会弹出系统的选字菜单。要选字请 **双击一个词**，再拖两端的选择柄；习惯长按选字的，可以在设置里打开「手机上正在打字时长按选字」（光标在正文里时长按选字，其他时候长按拖动）。
+
+和 wolai 一样：拖动时被拖的块在原位置变淡，一张显示整块内容的卡片跟着鼠标（手机上跟着手指）走；放下后那一块短暂高亮一下。**电脑上单击把手**（不拖）打开这一块的菜单（Obsidian 的右键菜单，图片是图片菜单）。
 
 会自动补好前后的空行，不会因为拖动让段落粘到列表里或挤在一起；空行宽松的列表拖完仍是宽松的。拖到窗口上下边缘会自动滚动；电脑上拖动中按 Esc 取消。一次拖动 = 一次撤销（Ctrl+Z）。只在编辑模式可用，阅读模式不能拖。设置里可以关闭（装了 Dragger 等同类插件时请二选一）。
 

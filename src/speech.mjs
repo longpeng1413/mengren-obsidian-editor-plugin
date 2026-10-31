@@ -12,7 +12,7 @@ const ONLINE_FAIL = '百度朗读这一句没取到声音（已自动重试 2 �
 const RETRY_DELAYS = [600, 1500];
 // Bumped on every local build the user tests, since the version number stays
 // the same until release; shown in the diagnostics.
-const REVISION = 14;
+const REVISION = 15;
 const ENGINES = {auto: '自动（推荐）', system: '系统声音（离线）', baidu: '百度朗读（联网）'};
 const CACHE_LIMIT = 6;
 const RESUME_FOLLOW = 6000;

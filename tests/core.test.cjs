@@ -386,8 +386,8 @@ test('drag blocks: code fences, quotes, Callouts and tables move whole; indented
   // A quote dropped right after a paragraph gets its blank line, so it never becomes lazy text.
   assert.equal(moveBlock('段落\n\n尾\n\n> 引',blockAt('段落\n\n尾\n\n> 引',4),{line:2}).text,'段落\n\n> 引\n\n尾');
 });
-test('drag blocks: headings drop only before headings or at the end, never inside themselves',()=>{
-  assert.deepEqual(dropTargets(blockDoc,blockAt(blockDoc,5)).map(t=>t.line),[0,5,14,18,21]);
+test('drag blocks: like wolai, a heading section lands between any top-level blocks, never inside itself',()=>{
+  assert.deepEqual(dropTargets(blockDoc,blockAt(blockDoc,5)).map(t=>t.line),[0,2,5,14,16,18,20,21]);
   assert.ok(dropTargets(blockDoc,blockAt(blockDoc,0)).every(t=>t.line===0||t.line>16));
   const list=dropTargets(blockDoc,blockAt(blockDoc,8));
   assert.ok(list.some(t=>t.line===10&&t.indent===''&&t.list));
