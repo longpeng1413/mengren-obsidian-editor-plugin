@@ -1037,6 +1037,20 @@ test('a folded heading section moves whole and stays folded',async()=>{
   assert.deepEqual(await page.evaluate(()=>fixture.folds()),[[10,17]]);
 });
 
+test('every handle sits in one column, the heading handle\'s, whatever the block or its indent',async()=>{
+  await setup('# 标题\n\n正文\n\n- 列表\n\t- 子列表\n\n![[图.png]]\n\n```\n代码\n```\n\n> 引用\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n\t知识行\n');
+  const xs=[];
+  for(const line of [1,3,5,6,8,11,14,16,20]) {
+    await hoverLine(line);
+    const h=await page.locator('.tet-drag-handle').boundingBox();
+    assert.ok(h,`handle on line ${line}`);
+    xs.push(Math.round(h.x));
+  }
+  assert.equal(new Set(xs).size,1,`one column: ${xs}`);
+  const text=await page.evaluate(()=>fixture.cm.coordsAtPos(0).left);
+  assert.ok(xs[0]+18<text,'left of the text');
+});
+
 test('code blocks, quotes and tables get a handle and drag whole',async()=>{
   const doc=['正文','','```js','let a=1','```','','> 引用一','> 续','','| a | b |','| --- | --- |','| 1 | 2 |','','尾',''].join('\n');
   await setup(doc);

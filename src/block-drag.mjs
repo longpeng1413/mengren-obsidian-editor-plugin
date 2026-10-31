@@ -9,7 +9,9 @@ import { model, blockAt, dropTargets, moveBlock } from './blocks.mjs';
  * while not typing: it lifts, follows the finger and drops where the line
  * shows. A heading takes its whole section. One transaction, one undo step. */
 
-const HANDLE_GAP = 24, WIDE_GAP = 48, EDGE = 48, TOUCH_EDGE = 72, CARD_LINES = 40;
+// Handles sit in one column, left of where unindented text starts, clear of
+// the fold arrows Obsidian draws there.
+const HANDLE_GAP = 48, EDGE = 48, TOUCH_EDGE = 72, CARD_LINES = 40;
 // Under Android's own long-press time, so the block lifts before text selection starts.
 const LONG_PRESS = 300, SLOP = 10;
 
@@ -106,6 +108,14 @@ function blockDragExtension(plugin) {
       return blockAt(text, view.state.doc.lineAt(row.from).number - 1, m);
     }
 
+    /** Where unindented text starts in this editor (content edge plus line padding). */
+    column() {
+      const content = this.view.contentDOM, win = content.ownerDocument.defaultView;
+      const line = content.querySelector(':scope > .cm-line');
+      const pad = el => el ? parseFloat(win.getComputedStyle(el).paddingLeft) || 0 : 0;
+      return content.getBoundingClientRect().left + pad(content) + pad(line);
+    }
+
     /** Viewport rectangle of a source line's first visual row and its text start. */
     row(lineIndex) {
       const view = this.view, doc = view.state.doc;
@@ -140,15 +150,9 @@ function blockDragExtension(plugin) {
     /** Handle position beside the block's first row; `read` only measures. */
     place(block, read = false) {
       const r = this.row(block.from), box = this.view.dom.getBoundingClientRect();
-      // Headings and list items have Obsidian's fold arrow at their left, tables
-      // their row handles: leave a clear gap to them (users saw the two touch at 40px).
-      const gap = /^(heading|list|table)$/.test(block.kind) ? WIDE_GAP : HANDLE_GAP;
-      // Tab rows are drawn as a box from the line start: put the handle outside it.
-      if (block.kind === 'tab') {
-        const start = this.view.coordsAtPos(this.view.state.doc.line(block.from + 1).from, 1);
-        if (start) r.left = Math.min(r.left, start.left);
-      }
-      const style = { top: `${(r.top + r.bottom) / 2 - 11 - box.top}px`, left: `${r.left - gap - box.left}px` };
+      // Same column for every block (headings, lists at any depth, images,
+      // tables…), so the hand always goes to the same place.
+      const style = { top: `${(r.top + r.bottom) / 2 - 11 - box.top}px`, left: `${this.column() - HANDLE_GAP - box.left}px` };
       if (!read) Object.assign(this.handle.style, style);
       return style;
     }
