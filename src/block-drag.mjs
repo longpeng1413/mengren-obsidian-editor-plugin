@@ -9,7 +9,7 @@ import { model, blockAt, dropTargets, moveBlock } from './blocks.mjs';
  * while not typing: it lifts, follows the finger and drops where the line
  * shows. A heading takes its whole section. One transaction, one undo step. */
 
-const HANDLE_GAP = 24, WIDE_GAP = 40, EDGE = 48, TOUCH_EDGE = 72, CARD_LINES = 40;
+const HANDLE_GAP = 24, WIDE_GAP = 48, EDGE = 48, TOUCH_EDGE = 72, CARD_LINES = 40;
 // Under Android's own long-press time, so the block lifts before text selection starts.
 const LONG_PRESS = 300, SLOP = 10;
 
@@ -141,7 +141,7 @@ function blockDragExtension(plugin) {
     place(block, read = false) {
       const r = this.row(block.from), box = this.view.dom.getBoundingClientRect();
       // Headings and list items have Obsidian's fold arrow at their left, tables
-      // their row handles: stay clear of them.
+      // their row handles: leave a clear gap to them (users saw the two touch at 40px).
       const gap = /^(heading|list|table)$/.test(block.kind) ? WIDE_GAP : HANDLE_GAP;
       // Tab rows are drawn as a box from the line start: put the handle outside it.
       if (block.kind === 'tab') {
