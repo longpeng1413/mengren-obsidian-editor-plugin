@@ -952,13 +952,17 @@ async function hoverLine(n) {
   await page.waitForTimeout(30);
 }
 async function dragBlock(fromLine,toLine,{x=null,release=true}={}) {
+  // Older Chromium drops mouse events below the window: keep the whole note visible.
+  await page.setViewportSize({width:1200,height:1600});
   await hoverLine(fromLine);
   const handle=await page.locator('.tet-drag-handle').boundingBox();
   assert.ok(handle,'handle visible');
   await page.mouse.move(handle.x+handle.width/2,handle.y+handle.height/2);await page.mouse.down();
   const left=await page.evaluate(()=>fixture.cm.contentDOM.getBoundingClientRect().left);
-  await page.mouse.move(x??left+40,(await lineY(toLine))+1,{steps:6});
-  if(release){await page.mouse.up();await page.waitForTimeout(60);}
+  const y=(await lineY(toLine))+1;
+  assert.ok(y<1600,`line ${toLine} at ${y} is inside the window`);
+  await page.mouse.move(x??left+40,y,{steps:6});
+  if(release){await page.mouse.up();await page.waitForTimeout(60);await page.setViewportSize({width:1200,height:900});}
 }
 const dragDoc=['# 一','','段落一','续行','','## 甲','','- a','\t- a1','\t- a2','- b','','![[图.png]]','','## 乙','','正文乙','','# 二','','尾段',''].join('\n');
 
@@ -1007,6 +1011,7 @@ test('a drop indicator shows while dragging; Esc and the setting switch cancel',
   assert.equal(await page.locator('.tet-drop-indicator').isVisible(),true);
   assert.equal(await page.locator('.tet-drag-source').count(),1);
   await page.keyboard.press('Escape');await page.mouse.up();await page.waitForTimeout(40);
+  await page.setViewportSize({width:1200,height:900});
   assert.equal(await page.evaluate(()=>fixture.text()),dragDoc);
   assert.equal(await page.locator('.tet-drop-indicator').count(),0);
   await page.evaluate(()=>{fixture.plugin.settings.blockDrag=false;});
