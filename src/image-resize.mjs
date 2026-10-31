@@ -27,6 +27,10 @@ function imageElement(target) {
   return svg ? { element:svg, embed:embed || svg } : null;
 }
 
+// A touch shorter than block drag's long press (300 ms) and steadier than its
+// scroll threshold is a tap.
+const TAP_TIME = 300, TAP_SLOP = 10;
+
 class ImageResizeManager {
   constructor(plugin) {
     this.plugin = plugin;
@@ -153,6 +157,22 @@ class ImageResizeManager {
     if (event.target.closest?.('.tet-resize-overlay')) return;
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return; // native open/edit gestures
     const hit = imageElement(event.target);
+    if (hit && event.pointerType === 'touch') {
+      // On a touch screen only a tap opens the handles: a long press belongs to
+      // drag-to-move blocks and a swipe to scrolling.
+      const doc = event.target.ownerDocument, start = { id: event.pointerId, x: event.clientX, y: event.clientY, t: Date.now() };
+      const end = e => {
+        if (e.pointerId !== start.id) return;
+        doc.removeEventListener('pointerup', end, true); doc.removeEventListener('pointercancel', end, true);
+        if (e.type === 'pointerup' && Date.now() - start.t < TAP_TIME && Math.hypot(e.clientX - start.x, e.clientY - start.y) < TAP_SLOP) void this.choose(e, hit);
+      };
+      doc.addEventListener('pointerup', end, true); doc.addEventListener('pointercancel', end, true);
+      return;
+    }
+    return this.choose(event, hit);
+  }
+
+  async choose(event, hit) {
     // Each press cancels a resolution still pending from an earlier press.
     const id = ++this.resolveId;
     if (!hit) { this.close(); return; }

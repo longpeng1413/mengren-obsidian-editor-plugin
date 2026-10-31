@@ -56,4 +56,7 @@ class Setting {
   addDropdown(fn){const c=this.make('select');c.addOption=(value,label)=>{const o=document.createElement('option');o.value=value;o.textContent=label;c.inputEl.appendChild(o);return c;};c.onChange=f=>{c.inputEl.addEventListener('change',()=>f(c.inputEl.value));return c;};fn(c);return this;}
 }
 const normalizePath=p=>p.replace(/\\/g,'/').replace(/\/{2,}/g,'/');
-module.exports={Plugin,PluginSettingTab,Setting,Modal,Notice,MarkdownView,Menu,setIcon,requestUrl,editorInfoField,normalizePath,notices};
+class Component {load(){this.loaded=true;}unload(){this.loaded=false;window.unloadedComponents=(window.unloadedComponents||0)+1;}addChild(c){return c;}register(){}}
+// Rendering like Reading view: marked stands in for Obsidian's renderer.
+const MarkdownRenderer={render:async(app,markdown,el)=>{el.innerHTML=require('marked').marked.parse(markdown);}};
+module.exports={Component,MarkdownRenderer,Plugin,PluginSettingTab,Setting,Modal,Notice,MarkdownView,Menu,setIcon,requestUrl,editorInfoField,normalizePath,notices};

@@ -414,3 +414,22 @@ test('drag blocks: moving keeps blank-line separators and list spacing',()=>{
   assert.equal(move('A\n\nB',0,{line:0}),undefined);
   assert.equal(move('A\n\nB',0,{line:1}),undefined);
 });
+test('drag blocks: indented lines under a paragraph are its children and move with it (wolai)',()=>{
+  const cases=[
+    ['父正文\n\n\t子说明一\n\t子说明二\n\n下一段',3],
+    ['父正文\n\t- 子项一\n\t- 子项二\n\n下一段',2],
+    ['父正文\n\n\t- 子项一\n\t- 子项二\n\n下一段',3],
+    ['父正文\n  - 子项一\n  - 子项二\n\n下一段',2],
+  ];
+  for(const [text,to] of cases) {
+    assert.deepEqual(blockAt(text,0),{kind:'paragraph',from:0,to},text);
+    const lines=text.split('\n'),parent=lines.slice(0,to+1).join('\n');
+    assert.equal(moveBlock(text,blockAt(text,0),{line:lines.length}).text,'下一段\n\n'+parent,text);
+    // Drop positions skip the gap between a parent and its children.
+    assert.deepEqual(dropTargets(text,blockAt(text,lines.length-1)).map(t=>t.line),[0,lines.length-1,lines.length]);
+  }
+  // A child alone still drags by itself.
+  assert.equal(blockAt('父正文\n\n\t子说明\n\n下一段',2).kind,'tab');
+  // A past-the-end drop still gets its blank line.
+  assert.equal(moveBlock('A\n\nB',blockAt('A\n\nB',0),{line:9}).text,'B\n\nA');
+});
