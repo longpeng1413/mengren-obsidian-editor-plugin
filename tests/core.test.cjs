@@ -346,3 +346,51 @@ test('read-aloud skips bracketed video timestamps but keeps ordinary times',()=>
   // Bracketed text that is not a time is still read.
   assert.deepEqual(speechSegments('[注意] 第 3 段 [1:2]').map(x=>x.text),['注意 第 3 段 1:2']);
 });
+
+const {blockAt,dropTargets,moveBlock}=require('../src/blocks.mjs');
+const blockDoc=['# 一','','段落一','续行','','## 甲','','- a','\t- a1','\t- a2','- b','','![[图.png]]','','## 乙','','正文乙','','# 二','','尾段',''].join('\n');
+test('drag blocks: heading carries its section, list item its children, paragraph its lines',()=>{
+  const at=l=>{const b=blockAt(blockDoc,l);return b&&[b.kind,b.from,b.to];};
+  assert.deepEqual(at(0),['heading',0,16]);
+  assert.deepEqual(at(5),['heading',5,12]);
+  assert.deepEqual(at(18),['heading',18,20]);
+  assert.deepEqual(at(3),['paragraph',2,3]);
+  assert.deepEqual(at(7),['list',7,9]);
+  assert.deepEqual(at(9),['list',9,9]);
+  assert.deepEqual(at(12),['image',12,12]);
+  assert.equal(at(1),null);
+  // Lazy continuation lines belong to the list item above them.
+  assert.deepEqual(blockAt('- a\n续写\n\n正文',1),{kind:'list',from:0,to:1,indent:''});
+  // Front matter, fences and quotes are not draggable.
+  assert.equal(blockAt('---\na: 1\n---\n正文',1),null);
+  assert.equal(blockAt('```\n代码\n```',1),null);
+  assert.equal(blockAt('> 引用',0),null);
+});
+test('drag blocks: headings drop only before headings or at the end, never inside themselves',()=>{
+  assert.deepEqual(dropTargets(blockDoc,blockAt(blockDoc,5)).map(t=>t.line),[0,5,14,18,21]);
+  assert.ok(dropTargets(blockDoc,blockAt(blockDoc,0)).every(t=>t.line===0||t.line>16));
+  const list=dropTargets(blockDoc,blockAt(blockDoc,8));
+  assert.ok(list.some(t=>t.line===10&&t.indent===''&&t.list));
+  assert.ok(list.some(t=>t.line===10&&t.indent==='\t'&&t.list));
+});
+test('drag blocks: moving keeps blank-line separators and list spacing',()=>{
+  const move=(text,line,target)=>moveBlock(text,blockAt(text,line),target)?.text;
+  assert.equal(move(blockDoc,5,{line:18}),'# 一\n\n段落一\n续行\n\n## 乙\n\n正文乙\n\n## 甲\n\n- a\n\t- a1\n\t- a2\n- b\n\n![[图.png]]\n\n# 二\n\n尾段\n');
+  assert.equal(move(blockDoc,2,{line:20}),'# 一\n\n## 甲\n\n- a\n\t- a1\n\t- a2\n- b\n\n![[图.png]]\n\n## 乙\n\n正文乙\n\n# 二\n\n段落一\n续行\n\n尾段\n');
+  assert.equal(move(blockDoc,12,{line:0}),'![[图.png]]\n\n# 一\n\n段落一\n续行\n\n## 甲\n\n- a\n\t- a1\n\t- a2\n- b\n\n## 乙\n\n正文乙\n\n# 二\n\n尾段\n');
+  // List items take the level of the drop position; children shift with them.
+  assert.equal(move(blockDoc,8,{line:10,indent:'',list:true}),blockDoc.replace('\t- a1\n\t- a2\n- b','\t- a2\n- a1\n- b'));
+  assert.equal(move('- p\n  - c\n  - d\n- q',3,{line:2,indent:'  ',list:true}),'- p\n  - c\n  - q\n  - d');
+  assert.equal(move('- p\n\t- c\n- q',0,{line:3,indent:'',list:true}),'- q\n- p\n\t- c');
+  // Loose lists stay loose; tight lists stay tight.
+  assert.equal(move('- a\n\n- b\n\n- c',0,{line:5,indent:'',list:true}),'- b\n\n- c\n\n- a');
+  assert.equal(move('- a\n- b\n- c',0,{line:3,indent:'',list:true}),'- b\n- c\n- a');
+  // Start/end of note: no stray blank lines, the trailing newline is kept as it was.
+  assert.equal(move('A\n\nB\n\nC',4,{line:0}),'C\n\nA\n\nB');
+  assert.equal(move('A\n\nB\n\nC\n',0,{line:5}),'B\n\nC\n\nA\n');
+  assert.equal(move('P\n\n- a\n\nQ',2,{line:0,indent:'',list:false}),'- a\n\nP\n\nQ');
+  // CRLF stays CRLF; dropping a block back where it was changes nothing.
+  assert.equal(moveBlock('A\r\n\r\nB\r\n',blockAt('A\n\nB\n',2),{line:0}).text,'B\r\n\r\nA\r\n');
+  assert.equal(move('A\n\nB',0,{line:0}),undefined);
+  assert.equal(move('A\n\nB',0,{line:1}),undefined);
+});

@@ -4,6 +4,7 @@ import { captureSelection, commitStyle, HEX } from './text-style.mjs';
 import { textStyleExtension } from './text-style-view.mjs';
 import { layoutExtension, applyLayout, decorateTabKnowledge, refreshTabKnowledge, decorateExtraBlankLines, refreshExtraBlankLines } from './layout.mjs';
 import { ImageResizeManager, cleanTarget } from './image-resize.mjs';
+import { blockDragExtension } from './block-drag.mjs';
 import { SpeechReader, speechExtension, pruneProgress, RATES, ENGINES, HIGHLIGHTS } from './speech.mjs';
 
 const DEFAULTS = {
@@ -13,6 +14,7 @@ const DEFAULTS = {
   splitIndentedListParagraphs:true,
   tabKnowledgeLines:true,
   preserveExtraBlankLines:true,
+  blockDrag:true,
   backupEnabled:true, imageResize:true, readingResize:true, freeResize:false, maxImageWidth:4096,
   speechRemember:true, speechRate:1, speechVoice:'', speechEngine:'auto', speechHighlight:'yellow', speechProgress:{},
   colors:[
@@ -164,6 +166,8 @@ class TraderSettings extends PluginSettingTab {
     toggle('Tab 缩进按知识行显示','独立 Tab 缩进块中，每个物理行都使用与列表项相同的块间距；自动折行仍紧凑。阅读/PDF 同步显示。代码围栏和空格缩进代码不受影响；若 Tab 本来表示程序代码，请关闭。只改变显示，不写正文。','tabKnowledgeLines');
     toggle('保存原文备份','格式化、阅读模式图片写回前，在本插件 backups 目录保存原文。备份不会自动删除。','backupEnabled');
     new Setting(el).setName('备份位置').setDesc(`${p.app.vault.configDir}/plugins/${p.manifest.id}/backups/`);
+    new Setting(el).setName('拖动移动块').setHeading();
+    toggle('启用拖动移动块','编辑模式里鼠标移到标题、正文、列表项或图片左边，出现六个点的把手，按住拖到别处再松手。标题连同它下面的整节一起移动（折叠着也一样）；列表项带着子条目，放到哪里就跟那里的列表同级；正文按段移动；会自动补好前后的空行。一次拖动一次撤销（Ctrl+Z），拖动中按 Esc 取消。暂不支持手机和阅读模式。','blockDrag');
     new Setting(el).setName('图片拖拽缩放').setHeading();
     toggle('启用图片拖拽','点击图片出现四角控制点；拖动默认保持比例，Alt 自由调整，Esc 取消。','imageResize');
     toggle('允许阅读模式调整','阅读模式调整也会写回 Markdown；没有编辑窗格时先保存原文备份。','readingResize');
@@ -240,6 +244,7 @@ export default class TraderEditorTools extends Plugin {
     this.registerEditorExtension(layoutExtension(this));
     this.registerEditorExtension(textStyleExtension());
     this.registerEditorExtension(speechExtension());
+    this.registerEditorExtension(blockDragExtension(this));
     this.app.workspace.onLayoutReady(()=>this.speech.attachAll());
     this.registerEvent(this.app.workspace.on('layout-change',()=>{this.speech.attachAll();this.speech.check();}));
     this.registerEvent(this.app.workspace.on('file-open',()=>this.speech.check()));
