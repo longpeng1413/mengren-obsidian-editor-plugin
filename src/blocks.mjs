@@ -141,7 +141,9 @@ function endTarget(m) { return m.src.length - (m.src.length > 1 && m.src.at(-1) 
 /** Candidate drop positions for a block: {line, indent, list, ref}. `line` is
  * the source line the block is inserted before; `indent` is the list prefix
  * for list items (null for other blocks); `ref` is the list item whose level
- * the position takes. Nothing lands inside the block itself. */
+ * the position takes. Nothing lands inside the block itself. As in wolai, any
+ * block (a heading with its section too) may land between any top-level blocks;
+ * only list items also land between list items. */
 function dropTargets(text, block, m = model(text)) {
   const out = [], seen = new Set();
   const add = (line, indent = null, list = false, ref = null) => {
@@ -156,10 +158,7 @@ function dropTargets(text, block, m = model(text)) {
     i = topEnd(m, i) + 1;
   }
   const last = endTarget(m);
-  if (block.kind === 'heading') {
-    for (const i of starts) if (m.kinds[i] === 'heading' && !m.quotes[i]) add(i);
-    add(last);
-  } else if (block.kind === 'list') {
+  if (block.kind === 'list') {
     // Before any item (as its sibling) and after any item's subtree.
     for (let i = m.body; i < m.src.length; i++) if (isListStart(m, i)) {
       const indent = m.src[i].match(/^[ \t]*/)[0];

@@ -156,10 +156,19 @@ function blockDragExtension(plugin) {
     start(e) {
       if (e.button !== 0 || !this.hover || !this.enabled()) return;
       e.preventDefault(); e.stopPropagation();
-      if (!this.begin(this.hover, e.clientX, e.clientY, { pointer: e.pointerId })) return;
+      if (!this.begin(this.hover, e.clientX, e.clientY, { pointer: e.pointerId, start: { x: e.clientX, y: e.clientY }, moved: false })) return;
       try { this.handle.setPointerCapture(e.pointerId); } catch { /* the pointer already left */ }
       this.handle.classList.add('is-dragging');
-      this.onUp = ev => { if (ev.pointerId === this.drag?.pointer) this.finish(ev.type === 'pointerup'); };
+      this.onUp = ev => {
+        if (ev.pointerId !== this.drag?.pointer) return;
+        // A click on the handle, as in wolai, opens the block's menu.
+        if (ev.type === 'pointerup' && !this.drag.moved) {
+          const block = this.drag.block;
+          this.cancel();
+          return this.blockMenu(block);
+        }
+        this.finish(ev.type === 'pointerup');
+      };
       this.handle.addEventListener('pointerup', this.onUp);
       this.handle.addEventListener('pointercancel', this.onUp);
     }
@@ -207,7 +216,7 @@ function blockDragExtension(plugin) {
       const t = e.touches[0], block = this.blockAtY(t.clientY);
       if (!block) return;
       const win = this.view.dom.ownerDocument.defaultView;
-      this.press = { block, id: t.identifier, x: t.clientX, y: t.clientY };
+      this.press = { block, id: t.identifier, x: t.clientX, y: t.clientY, target: e.target };
       this.press.timer = win.setTimeout(() => this.lift(), LONG_PRESS);
     }
     clearPress() {
@@ -219,7 +228,7 @@ function blockDragExtension(plugin) {
       const p = this.press;
       if (!p || this.view.state.doc.toString() !== this.model().text) return this.clearPress();
       const doc = this.view.dom.ownerDocument;
-      if (!this.begin(p.block, p.x, p.y, { touch: p.id })) return this.clearPress();
+      if (!this.begin(p.block, p.x, p.y, { touch: p.id, start: { x: p.x, y: p.y, target: p.target }, moved: false })) return this.clearPress();
       this.press = null;
       // Nothing editable or selectable while a block is lifted: the system's own
       // long press (selection handles, copy/paste menu) finds no text to act on.
@@ -253,8 +262,34 @@ function blockDragExtension(plugin) {
       if (!this.touching() || !this.touchOf(e)) return;
       // No click, caret or keyboard after a drop.
       e.preventDefault();
+      // Long press and release in place, as in wolai: no move, open the menu
+      // Obsidian shows for a long press there (image menu, editor menu).
+      if (e.type === 'touchend' && !this.drag.moved) {
+        const { x, y, target } = this.drag.start;
+        this.cancel();
+        this.guardUntil = 0;
+        return this.menu(target, x, y);
+      }
       this.guardUntil = Date.now() + 600;
       this.finish(e.type === 'touchend', true);
+    }
+    /** Obsidian's menu for a block, opened at its first row (an image's own
+     * menu for an image). */
+    blockMenu(block) {
+      const view = this.view, line = view.state.doc.line(block.from + 1), r = this.row(block.from);
+      const x = Math.round(r.left + 4), y = Math.round((r.top + r.bottom) / 2);
+      // What is drawn at the block's start: text, or the image of an embed.
+      let el = view.dom.ownerDocument.elementFromPoint(x, y);
+      if (!el || !view.contentDOM.contains(el)) {
+        try { const { node } = view.domAtPos(line.from + line.text.match(/^[ \t]*/)[0].length); el = node.nodeType === 1 ? node : node.parentElement; } catch { el = null; }
+      }
+      if (block.kind === 'image') el = el?.closest('.internal-embed, .cm-embed-block')?.querySelector('img') || el;
+      this.menu(el, x, y);
+    }
+    menu(target, x, y) {
+      const doc = this.view.dom.ownerDocument;
+      const el = target?.isConnected ? target : doc.elementFromPoint(x, y);
+      el?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: x, clientY: y, view: doc.defaultView }));
     }
 
     /** The whole block as a floating card under the finger, as in wolai and
@@ -292,7 +327,10 @@ function blockDragExtension(plugin) {
       const card = this.drag?.card?.el;
       if (!card) return;
       // Anchor the card's bottom edge: images inside it may still be loading.
-      const y = this.drag.y, above = y - card.offsetHeight - 28 >= 0;
+      const y = this.drag.y;
+      // The mouse pointer is small: the card hangs just below it, like a drag image.
+      if (!this.touching()) { card.style.transform = `translateY(${y + 16}px)`; return; }
+      const above = y - card.offsetHeight - 28 >= 0;
       card.style.transform = above ? `translateY(${y - 28}px) translateY(-100%)` : `translateY(${y + 28}px)`;
     }
 
@@ -316,6 +354,11 @@ function blockDragExtension(plugin) {
       const d = this.drag;
       if (pointer !== undefined && pointer !== d.pointer) return;
       d.x = x; d.y = y;
+      // A mouse drag shows the card once it really moves, so a click shows nothing.
+      if (!d.moved && Math.hypot(x - d.start.x, y - d.start.y) > (this.touching() ? SLOP : 4)) {
+        d.moved = true;
+        if (!d.card) this.ghost();
+      }
       this.moveGhost();
       this.pick();
     }
@@ -372,10 +415,33 @@ function blockDragExtension(plugin) {
         const last = doc.line(Math.min(doc.lines, result.line + result.lines));
         if (last.to > first.to) effects.push(foldEffect.of({ from: first.to, to: last.to }));
       }
+      this.flash(result.line, result.line + result.lines - 1);
       // On a phone, focusing would raise the keyboard: only fold, keep reading.
       if (touch) { if (effects.length) view.dispatch({ effects }); return; }
       view.dispatch({ selection: { anchor: first.from }, effects });
       view.focus();
+    }
+
+    /** Briefly highlight where the block landed, as wolai does. */
+    flash(from, to) {
+      const view = this.view, doc = view.dom.ownerDocument;
+      view.requestMeasure({
+        read: () => {
+          const d = view.state.doc;
+          if (from >= d.lines) return null;
+          const top = view.documentTop + view.lineBlockAt(d.line(from + 1).from).top;
+          const bottom = view.documentTop + view.lineBlockAt(d.line(Math.min(d.lines, to + 1)).from).bottom;
+          const box = view.dom.getBoundingClientRect(), content = view.contentDOM.getBoundingClientRect();
+          return { top: top - box.top, height: Math.max(4, bottom - top), left: content.left - box.left, width: content.width };
+        },
+        write: rect => {
+          if (!rect) return;
+          const el = view.dom.appendChild(doc.createElement('div'));
+          el.className = 'tet-drop-flash';
+          Object.assign(el.style, { top: `${rect.top}px`, height: `${rect.height}px`, left: `${rect.left}px`, width: `${rect.width}px` });
+          doc.defaultView.setTimeout(() => el.remove(), 900);
+        },
+      });
     }
 
     cancel() {

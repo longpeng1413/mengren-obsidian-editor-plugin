@@ -340,14 +340,25 @@ body.tet-enabled .markdown-source-view.mod-cm6.is-live-preview .cm-line.tet-h3.t
   color: var(--text-muted, #666);
   background-color: var(--background-modifier-hover, rgba(127, 127, 127, 0.15));
 }
+/* The block being moved fades in place, as in wolai. */
 .tet-drag-source {
   position: absolute;
   z-index: 4;
   border-radius: 4px;
-  background-color: var(--background-modifier-hover, rgba(127, 127, 127, 0.15));
+  background-color: var(--background-primary, #fff);
   opacity: 0.6;
   pointer-events: none;
 }
+/* Where the block landed, highlighted for a moment. */
+.tet-drop-flash {
+  position: absolute;
+  z-index: 4;
+  border-radius: 4px;
+  background-color: var(--text-selection, rgba(123, 108, 217, 0.25));
+  pointer-events: none;
+  animation: tet-drop-flash 0.9s ease-out forwards;
+}
+@keyframes tet-drop-flash { from { opacity: 1; } to { opacity: 0; } }
 .tet-drop-indicator {
   position: absolute;
   z-index: 6;
@@ -394,4 +405,4 @@ body.tet-block-dragging img { -webkit-user-drag: none; }
   color: var(--text-on-accent, #fff);
   background-color: var(--interactive-accent, #7b6cd9);
 }
-@media print { .tet-drag-handle, .tet-drag-source, .tet-drop-indicator, .tet-drag-ghost { display: none !important; } }
+@media print { .tet-drag-handle, .tet-drag-source, .tet-drop-indicator, .tet-drag-ghost, .tet-drop-flash { display: none !important; } }
