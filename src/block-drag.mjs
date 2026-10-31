@@ -245,7 +245,7 @@ function blockDragExtension(plugin) {
         if (r.bottom > top + 1 && r.top < bottom - 1) inner.appendChild(el.cloneNode(true));
       }
       ghost.style.width = `${content.width}px`;
-      d.ghost = ghost; d.grab = { dx: x - content.left, height: ghost.getBoundingClientRect().height };
+      d.ghost = ghost; d.grab = { dx: x - content.left };
       this.moveGhost();
     }
     /** The copy floats just above the fingertip (below it near the top edge),
@@ -253,8 +253,9 @@ function blockDragExtension(plugin) {
     moveGhost() {
       const d = this.drag;
       if (!d?.ghost) return;
-      const above = d.y - d.grab.height - 28;
-      d.ghost.style.transform = `translate(${d.x - d.grab.dx}px, ${above >= 0 ? above : d.y + 28}px)`;
+      // Anchor the copy's bottom edge: images inside it may still be loading.
+      const above = d.y - d.ghost.offsetHeight - 28 >= 0;
+      d.ghost.style.transform = `translate(${d.x - d.grab.dx}px, ${above ? d.y - 28 : d.y + 28}px)${above ? ' translateY(-100%)' : ''}`;
     }
 
     /** Shade the lines being moved. */
