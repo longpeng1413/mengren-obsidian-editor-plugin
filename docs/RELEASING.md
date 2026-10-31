@@ -20,6 +20,8 @@ git tag -a 0.1.1 -m "Release 0.1.1"
 git push origin 0.1.1
 ```
 
+推不了 tag 时（例如在云端会话里），在 GitHub 的 Actions → Release → Run workflow 填版本号（分支选 `main`）：工作流在当前 main 提交上建同名 tag 并发布，其余步骤相同；tag 已存在时拒绝。
+
 `release.yml` 验证 tag/manifest/package 版本一致，重新构建和运行纯算法测试，签发构建来源证明，通过仓库临时 `GITHUB_TOKEN` 发布 Release。Token 不写入代码或日志，不需维护者存长期密钥。
 
 Release assets（`main.js`、`manifest.json`、`styles.css` 附 GitHub 构建来源证明，可用 `gh attestation verify main.js --repo longpeng1413/mengren-obsidian-editor-plugin` 核验）:
