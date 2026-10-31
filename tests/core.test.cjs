@@ -170,6 +170,17 @@ test('formatter adds blank before sibling after nested items without reindenting
   const input='- A\n  - a\n  - b\n- B';
   assert.equal(formatNote(input).text,'- A\n  - a\n  - b\n\n- B');
 });
+test('Tab-indented nested list items are list lines like space-indented ones',()=>{
+  const input='- 中继行情必须等：\n\t- 1.高位空消化\n\t  续行\n\t- 2.归零轴\n\t\t- 更深一层\n- B';
+  const d=classify(input);
+  assert.deepEqual(d.kinds,['list','list','protected','list','list','list']);
+  assert.equal(d.continuations[2],true);
+  assert.deepEqual(d.kinds,classify(input.replace(/\t/g,'    ')).kinds);
+  assert.equal(formatNote(input).text,input.replace('\n- B','\n\n- B'));
+  // Outside a list a Tab-indented marker stays an indented block / prose line.
+  assert.deepEqual(classify('正文\n\n\t- 知识行').indentedCode,[false,false,true]);
+  assert.deepEqual(classify('正文\n\t- 软换行').kinds,['prose','prose']);
+});
 test('fences, YAML, inline code and comments produce no image matches',()=>{
   const input='---\nexample: ![[fake.png]]\n---\n```\n![[fake.png]]\n```\n`![[fake.png]]`\n<!-- ![[fake.png]] -->\n![[real.png]]';
   assert.deepEqual(scanImages(input).map(x=>x.target),['real.png']);

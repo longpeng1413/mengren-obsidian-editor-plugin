@@ -52,9 +52,20 @@ function isTableRule(line) {
   return cells.length > 0 && /\|/.test(line) && cells.every(c => /^\s*:?-{3,}:?\s*$/.test(c));
 }
 
+/** Width of leading whitespace in columns; a Tab advances to the next stop of 4. */
+function columns(space) {
+  let n = 0;
+  for (const c of space) n = c === '\t' ? n + 4 - n % 4 : n + 1;
+  return n;
+}
+
+/** Obsidian indents nested items with Tabs by default, so Tab-indented
+ * markers are list items too. `tab` lets callers stay conservative. */
 function listItem(line) {
-  const m = /^( *)([-+*]|\d+[.)])\s+(.*)$/.exec(line);
-  return m ? { indent: m[1].length, content: m[3] } : null;
+  const m = /^([ \t]*)([-+*]|\d+[.)])(\s+)(.*)$/.exec(line);
+  if (!m) return null;
+  const indent = columns(m[1]);
+  return { indent, content: m[4], tab: m[1].includes('\t'), contentIndent: columns(m[1] + m[2] + m[3].replace(/\t[\s\S]*/, '\t')) };
 }
 
 /** Block starts which interrupt a CommonMark paragraph/lazy continuation.
@@ -136,8 +147,10 @@ function classify(text, { splitLazyListLines = false } = {}) {
     if(reference && /^( {2,}|\t)/.test(s)) { kinds[i]='protected';opaque[i]=true;continue; }
     reference=false;
     if (/^ {0,3}(?:([-*_])(?:\s*\1){2,})\s*$/.test(s)) { kinds[i]='protected';list=false;continue; }
+    // A Tab-indented marker only continues an open list; elsewhere it stays
+    // an indented block (Tab knowledge rows, indented code) as before.
     const li = listItem(s);
-    if (li) { kinds[i] = 'list'; list = true; lastListIndent=li.indent; listContentIndent=s.match(/^ *(?:[-+*]|\d+[.)])\s+/)[0].length; continue; }
+    if (li && (!li.tab || list)) { kinds[i] = 'list'; list = true; lastListIndent=li.indent; listContentIndent=li.contentIndent; continue; }
     if (/^( {2,}|\t)/.test(s)) {
       const indent=s.match(/^\s*/)[0].replace(/\t/g,'    ').length;
       if(list && indent>=listContentIndent) {
@@ -305,7 +318,8 @@ function excludedRanges(text, data) {
       else if(s.split('%%').length===2) comment='%%';
       return;
     }
-    if(listItem(s)) list=true;
+    const li=listItem(s);
+    if(li && (!li.tab || list)) list=true;
     if(!list && /^( {4}|\t)/.test(s)) ranges.push([line.start,line.end]);
     if(s.trim() && !/^\s/.test(s) && !listItem(s) && !/^>/.test(s)) list=false;
   });

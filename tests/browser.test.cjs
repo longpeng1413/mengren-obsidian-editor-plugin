@@ -550,6 +550,17 @@ test('headings keep symmetric specified em padding',async()=>{
   for(let i=0;i<6;i++) {assert.ok(Math.abs(values[i][0]-[.95,.82,.70,.58,.58,.58][i])<.001);assert.equal(values[i][0],values[i][1]);assert.equal(values[i][2],'0px');}
 });
 
+test('Tab-indented nested list items get the same Live Preview spacing as space-indented ones',async()=>{
+  const pads=async input=>{await setup(input);return page.locator('.cm-line').evaluateAll(ns=>ns.map(n=>[n.className.includes('tet-list-line'),getComputedStyle(n).paddingTop,getComputedStyle(n).paddingBottom]));};
+  const input='- 中继行情必须等：\n\t- 1.高位空消化\n\t- 2.归零轴\n\t- 3.两个原因';
+  const tabs=await pads(input);
+  assert.deepEqual(tabs.map(r=>r[0]),[true,true,true,true]);
+  assert.ok(tabs.every(r=>r[1]==='4.48px'&&r[2]==='4.48px'));
+  assert.deepEqual(tabs,await pads(input.replace(/\t/g,'    ')));
+  await setup(input);
+  assert.equal(await page.evaluate(()=>fixture.text()),input);
+});
+
 test('quote adjacent to heading and list does not swallow Live Preview layout',async()=>{
   const input='## 第一节\n> 第一段引用\n## 第二节\n> 第二段引用\n- 项目一\n- 项目二\n惰性续行';
   await setup(input);
