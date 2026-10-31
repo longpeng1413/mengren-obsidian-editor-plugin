@@ -181,6 +181,15 @@ test('Tab-indented nested list items are list lines like space-indented ones',()
   assert.deepEqual(classify('正文\n\n\t- 知识行').indentedCode,[false,false,true]);
   assert.deepEqual(classify('正文\n\t- 软换行').kinds,['prose','prose']);
 });
+test('an unpaired ** or ~~ does not protect the lists and blocks after it',()=>{
+  const input='- **规律**——见后面的复盘**\n\t- 子项\n\n---\n\n- 第一条\n- ~~删除~~\n\t- 子项\n- 中间**加粗**结尾\n- 最后';
+  const d=classify(input);
+  assert.deepEqual(d.kinds,['list','list','blank','protected','blank','list','list','list','list','list']);
+  // Emphasis that really wraps inside one paragraph or list item stays protected.
+  assert.deepEqual(classify('前文**跨行\n加粗**后文').kinds,['protected','protected']);
+  assert.deepEqual(classify('- 项目**跨行\n  加粗**结尾\n- 下一项').kinds,['protected','protected','list']);
+  assert.equal(formatNote('前文**跨行\n加粗**后文').text,'前文**跨行\n加粗**后文');
+});
 test('fences, YAML, inline code and comments produce no image matches',()=>{
   const input='---\nexample: ![[fake.png]]\n---\n```\n![[fake.png]]\n```\n`![[fake.png]]`\n<!-- ![[fake.png]] -->\n![[real.png]]';
   assert.deepEqual(scanImages(input).map(x=>x.target),['real.png']);

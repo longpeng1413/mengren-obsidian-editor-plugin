@@ -179,10 +179,16 @@ function classify(text, { splitLazyListLines = false } = {}) {
     if (/\[[^\]]*$/.test(s) || /^\s*[<>]/.test(s)) kinds[i] = 'protected';
   }
   // Never insert a paragraph break inside multiline inline code/emphasis/HTML.
+  // Inline markup cannot span a block boundary (blank line, list item, heading,
+  // rule, quote, fence): an unpaired ** there is literal text, so pairing it with
+  // a delimiter further down would wrongly protect every line in between.
+  const startsBlock=s=>!s.trim() || !!listItem(s) || interruptsParagraph(s.trimStart()) || /^\s*>/.test(s);
   for(const regex of [/(`+)([\s\S]*?)\1/g, /(\*\*|__|~~)([\s\S]*?)\1/g, /<(span|mark|u)\b[^>]*>[\s\S]*?<\/\1>/gi, /\[[^\]]*\n[^\]]*\](?:\([^)]*\)|\[[^\]]*\])/g]) {
     let match;
     while((match=regex.exec(text))) if(/[\r\n]/.test(match[0])) {
-      for(let i=0;i<lines.length;i++) if(lines[i].start < regex.lastIndex && lines[i].end > match.index) { kinds[i]='protected';continuations[i]=false;opaque[i]=true; }
+      const spanned=lines.filter(l=>l.start < regex.lastIndex && l.end > match.index);
+      if(spanned.slice(1).some(l=>startsBlock(l.text))) { regex.lastIndex=match.index+1; continue; }
+      for(const l of spanned) { const i=lines.indexOf(l); kinds[i]='protected';continuations[i]=false;opaque[i]=true; }
     }
   }
   const tableContent=s=>s.replace(/^\s*(?:>\s*)+/, '');

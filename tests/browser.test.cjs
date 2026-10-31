@@ -561,6 +561,15 @@ test('Tab-indented nested list items get the same Live Preview spacing as space-
   assert.equal(await page.evaluate(()=>fixture.text()),input);
 });
 
+test('an unpaired ** does not remove Live Preview spacing from the lists after it',async()=>{
+  const input='- **规律**——见后面的复盘**\n\t- 子项\n\n---\n\n- 第一条\n- 第二条**加粗**\n- 第三条';
+  await setup(input);
+  const rows=await page.locator('.cm-line').evaluateAll(ns=>ns.filter(n=>n.textContent.trim() && !/^[-—]+$/.test(n.textContent.trim())).map(n=>[n.className.includes('tet-list-line'),getComputedStyle(n).paddingTop]));
+  assert.equal(rows.length,5);
+  assert.ok(rows.every(r=>r[0]&&r[1]==='4.48px'),JSON.stringify(rows));
+  assert.equal(await page.evaluate(()=>fixture.text()),input);
+});
+
 test('quote adjacent to heading and list does not swallow Live Preview layout',async()=>{
   const input='## 第一节\n> 第一段引用\n## 第二节\n> 第二段引用\n- 项目一\n- 项目二\n惰性续行';
   await setup(input);
