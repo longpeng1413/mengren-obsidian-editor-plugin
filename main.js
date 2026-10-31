@@ -5064,9 +5064,16 @@ function blockDragExtension(plugin) {
       this.handle.addEventListener("pointerdown", this.onDown);
     }
     update(update) {
-      if (update.docChanged || update.geometryChanged || update.viewportChanged) {
-        if (!this.drag) this.hide();
+      if (update.docChanged) {
         this.cache = null;
+        if (!this.drag) this.hide();
+        return;
+      }
+      if ((update.geometryChanged || update.viewportChanged) && this.hover && !this.drag && !this.handle.hidden) {
+        const block2 = this.hover;
+        this.view.requestMeasure({ read: () => this.place(block2, true), write: (style) => {
+          if (style && this.hover === block2) Object.assign(this.handle.style, style);
+        } });
       }
     }
     destroy() {
@@ -5115,13 +5122,18 @@ function blockDragExtension(plugin) {
       const block2 = blockAt(text, line, m);
       if (!block2) return this.hide();
       if (this.hover && this.hover.from === block2.from && this.hover.to === block2.to && !this.handle.hidden) return;
-      const r = this.row(block2.from), box = view.dom.getBoundingClientRect();
-      const gap = block2.kind === "heading" || block2.kind === "list" ? HEADING_GAP : HANDLE_GAP;
-      this.handle.style.top = `${(r.top + r.bottom) / 2 - 11 - box.top}px`;
-      this.handle.style.left = `${r.left - gap - box.left}px`;
+      this.place(block2);
       this.handle.dataset.kind = block2.kind;
       this.handle.hidden = false;
       this.hover = block2;
+    }
+    /** Handle position beside the block's first row; `read` only measures. */
+    place(block2, read = false) {
+      const r = this.row(block2.from), box = this.view.dom.getBoundingClientRect();
+      const gap = block2.kind === "heading" || block2.kind === "list" ? HEADING_GAP : HANDLE_GAP;
+      const style = { top: `${(r.top + r.bottom) / 2 - 11 - box.top}px`, left: `${r.left - gap - box.left}px` };
+      if (!read) Object.assign(this.handle.style, style);
+      return style;
     }
     start(e) {
       if (e.button !== 0 || !this.hover || !this.enabled()) return;

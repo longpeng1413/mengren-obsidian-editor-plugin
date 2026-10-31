@@ -954,6 +954,7 @@ async function hoverLine(n) {
 async function dragBlock(fromLine,toLine,{x=null,release=true}={}) {
   // Older Chromium drops mouse events below the window: keep the whole note visible.
   await page.setViewportSize({width:1200,height:1600});
+  await page.waitForTimeout(50);
   await hoverLine(fromLine);
   const handle=await page.locator('.tet-drag-handle').boundingBox();
   assert.ok(handle,'handle visible');
@@ -978,6 +979,13 @@ test('drag handle appears beside headings, paragraphs, list items and images, no
   const handle=await page.locator('.tet-drag-handle').boundingBox(),top=await lineY(6),bottom=await lineY(6,'bottom');
   assert.ok(handle.y+handle.height/2>top && handle.y+handle.height/2<bottom);
   assert.ok(handle.x+handle.width<await page.evaluate(()=>fixture.cm.coordsAtPos(fixture.cm.state.doc.line(6).from).left));
+  // A layout change above the block (an image growing) moves the handle with it.
+  await page.evaluate(()=>{document.querySelector('.cm-content').style.paddingTop='120px';fixture.cm.requestMeasure();});
+  await page.waitForTimeout(80);
+  const moved=await page.locator('.tet-drag-handle').boundingBox();
+  assert.equal(await page.locator('.tet-drag-handle').isVisible(),true);
+  const top2=await lineY(6),bottom2=await lineY(6,'bottom');
+  assert.ok(top2>top+90 && moved.y+moved.height/2>top2 && moved.y+moved.height/2<bottom2,`handle followed: ${handle.y} -> ${moved.y}, line ${top2}-${bottom2}`);
 });
 
 test('dragging a heading moves its whole section in one undo step',async()=>{

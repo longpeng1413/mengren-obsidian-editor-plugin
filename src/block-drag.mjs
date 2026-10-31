@@ -41,7 +41,12 @@ function blockDragExtension(plugin) {
       this.handle.addEventListener('pointerdown', this.onDown);
     }
     update(update) {
-      if (update.docChanged || update.geometryChanged || update.viewportChanged) { if (!this.drag) this.hide(); this.cache = null; }
+      if (update.docChanged) { this.cache = null; if (!this.drag) this.hide(); return; }
+      // Layout moved (window resized, an image loaded): keep the handle on its block.
+      if ((update.geometryChanged || update.viewportChanged) && this.hover && !this.drag && !this.handle.hidden) {
+        const block = this.hover;
+        this.view.requestMeasure({ read: () => this.place(block, true), write: style => { if (style && this.hover === block) Object.assign(this.handle.style, style); } });
+      }
     }
     destroy() {
       this.cancel();
@@ -91,14 +96,20 @@ function blockDragExtension(plugin) {
       if (!block) return this.hide();
       // Pointer over a child line of a list item: offer the item it belongs to.
       if (this.hover && this.hover.from === block.from && this.hover.to === block.to && !this.handle.hidden) return;
-      const r = this.row(block.from), box = view.dom.getBoundingClientRect();
-      // Headings and list items have Obsidian's fold arrow at their left: stay clear of it.
-      const gap = block.kind === 'heading' || block.kind === 'list' ? HEADING_GAP : HANDLE_GAP;
-      this.handle.style.top = `${(r.top + r.bottom) / 2 - 11 - box.top}px`;
-      this.handle.style.left = `${r.left - gap - box.left}px`;
+      this.place(block);
       this.handle.dataset.kind = block.kind;
       this.handle.hidden = false;
       this.hover = block;
+    }
+
+    /** Handle position beside the block's first row; `read` only measures. */
+    place(block, read = false) {
+      const r = this.row(block.from), box = this.view.dom.getBoundingClientRect();
+      // Headings and list items have Obsidian's fold arrow at their left: stay clear of it.
+      const gap = block.kind === 'heading' || block.kind === 'list' ? HEADING_GAP : HANDLE_GAP;
+      const style = { top: `${(r.top + r.bottom) / 2 - 11 - box.top}px`, left: `${r.left - gap - box.left}px` };
+      if (!read) Object.assign(this.handle.style, style);
+      return style;
     }
 
     start(e) {
