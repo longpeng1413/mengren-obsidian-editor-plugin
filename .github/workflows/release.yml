@@ -2,6 +2,13 @@ name: Release
 on:
   push:
     tags: ['[0-9]*']
+  # Release from the Actions page when a tag cannot be pushed: the workflow
+  # creates the tag on the current main commit.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, same as manifest.json (e.g. 0.1.17)'
+        required: true
 permissions:
   contents: write
   # Signed build provenance for the files Obsidian downloads.
@@ -10,6 +17,7 @@ permissions:
 jobs:
   release:
     # Pinned to the same image as CI (ubuntu-latest moved to Ubuntu 26 in Oct 2026).
+    if: github.event_name == 'push' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -22,7 +30,9 @@ jobs:
           node-version: 22
           cache: pnpm
       - name: Validate version
-        run: node scripts/validate-release.cjs
+        env:
+          RELEASE_TAG: ${{ inputs.version || github.ref_name }}
+        run: node scripts/validate-release.cjs "$RELEASE_TAG"
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm test:core
@@ -36,6 +46,15 @@ jobs:
       - name: Publish release assets
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ inputs.version || github.ref_name }}
         # Only the files Obsidian downloads; versions.json is read from the repository.
-        run: gh release create "$RELEASE_TAG" manifest.json main.js styles.css --verify-tag --title "Mengren Editor $RELEASE_TAG" --notes-file CHANGELOG.md
+        # A tag push releases that tag; a manual run creates the tag on this commit
+        # and refuses a version whose tag already exists.
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null; then echo "Tag $RELEASE_TAG already exists"; exit 1; fi
+            where=(--target "$GITHUB_SHA")
+          else
+            where=(--verify-tag)
+          fi
+          gh release create "$RELEASE_TAG" manifest.json main.js styles.css "${where[@]}" --title "Mengren Editor $RELEASE_TAG" --notes-file CHANGELOG.md
